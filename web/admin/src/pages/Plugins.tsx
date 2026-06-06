@@ -47,7 +47,7 @@ const mockPlugins = [
     size: 156000,
     memory: 64,
     events: ['record.create', 'record.update'],
-    lastExecuted: '2024-01-15T10:30:00Z',
+    lastExecuted: '2026-06-06T10:30:00Z',
   },
   {
     id: '2',
@@ -59,7 +59,7 @@ const mockPlugins = [
     size: 89000,
     memory: 32,
     events: ['record.create'],
-    lastExecuted: '2024-01-15T09:15:00Z',
+    lastExecuted: '2026-06-06T09:15:00Z',
   },
   {
     id: '3',
@@ -71,7 +71,7 @@ const mockPlugins = [
     size: 256000,
     memory: 128,
     events: ['file.upload'],
-    lastExecuted: '2024-01-14T16:45:00Z',
+    lastExecuted: '2026-06-05T16:45:00Z',
   },
 ]
 
@@ -91,7 +91,7 @@ export function PluginsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Plugins</h1>
           <p className="text-muted-foreground">
@@ -149,10 +149,10 @@ export function PluginsPage() {
         </Dialog>
       </div>
 
-      <Alert>
+      <Alert className="border-amber-500/40 bg-amber-500/10 [&>svg]:text-amber-500">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Sandboxed Environment</AlertTitle>
-        <AlertDescription>
+        <AlertTitle className="text-amber-500">Sandboxed Environment</AlertTitle>
+        <AlertDescription className="text-muted-foreground">
           All plugins run in a sandboxed WebAssembly environment with restricted access to system resources.
         </AlertDescription>
       </Alert>

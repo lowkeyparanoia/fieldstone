@@ -1,18 +1,23 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Box, Loader2 } from 'lucide-react'
-import { authApi } from '@/lib/api'
+import { Box } from 'lucide-react'
+import { useAuth } from '@/context/auth'
 
 export function LoginPage() {
-  const navigate = useNavigate()
+  const { login } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState('admin@fieldstone.io')
   const [password, setPassword] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,10 +26,8 @@ export function LoginPage() {
     setError('')
 
     try {
-      const response = await authApi.login(email, password)
-      localStorage.setItem('fieldstone_token', response.data.token)
-      navigate('/')
-    } catch (err) {
+      await login(email, password)
+    } catch {
       setError('Invalid email or password')
     } finally {
       setIsLoading(false)
@@ -32,25 +35,25 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 flex flex-col items-center">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mb-2">
+    <div className="flex min-h-screen items-center justify-center bg-muted/50 px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="flex flex-col items-center space-y-1 pb-2 text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
             <Box className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl text-center">Fieldstone</CardTitle>
-          <CardDescription className="text-center">
+          <CardTitle className="text-2xl">Fieldstone</CardTitle>
+          <CardDescription>
             Enter your credentials to access the admin panel
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="flex flex-col gap-4">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -61,7 +64,7 @@ export function LoginPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
@@ -71,13 +74,10 @@ export function LoginPage() {
                 required
               />
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="mt-1 w-full" loading={isLoading}>
               Sign In
             </Button>
-          </CardFooter>
+          </CardContent>
         </form>
       </Card>
     </div>

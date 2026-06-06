@@ -7,13 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Save, 
-  Database, 
-  HardDrive,
-  Key,
-  RefreshCw
-} from 'lucide-react'
+import { Save, Database, HardDrive, Key, RefreshCw } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -22,26 +16,59 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+function SettingRow({
+  label,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  onCheckedChange: (v: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="space-y-0.5">
+        <Label>{label}</Label>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
+  const [flags, setFlags] = useState({
+    reg: true,
+    verify: true,
+    publicApi: false,
+    jwt: true,
+    rate: true,
+    passkey: false,
+    autobackup: true,
+    notifReg: false,
+    notifFail: true,
+    notifSys: true,
+  })
+  const set = (k: keyof typeof flags) => (v: boolean) => setFlags((f) => ({ ...f, [k]: v }))
 
   const handleSave = () => {
     setIsSaving(true)
-    setTimeout(() => setIsSaving(false), 1000)
+    setTimeout(() => setIsSaving(false), 900)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your Fieldstone instance configuration
-          </p>
+          <p className="text-muted-foreground">Manage your Fieldstone instance configuration</p>
         </div>
-        <Button onClick={handleSave} disabled={isSaving}>
+        <Button onClick={handleSave} loading={isSaving}>
           <Save className="mr-2 h-4 w-4" />
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          {isSaving ? 'Saving…' : 'Save Changes'}
         </Button>
       </div>
 
@@ -56,10 +83,8 @@ export function SettingsPage() {
         <TabsContent value="general" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Instance Settings</CardTitle>
-              <CardDescription>
-                Configure basic instance information
-              </CardDescription>
+              <CardTitle className="text-lg">Instance Settings</CardTitle>
+              <CardDescription>Configure basic instance information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2">
@@ -89,41 +114,15 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Features</CardTitle>
-              <CardDescription>
-                Enable or disable platform features
-              </CardDescription>
+              <CardTitle className="text-lg">Features</CardTitle>
+              <CardDescription>Enable or disable platform features</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>User Registration</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Allow new users to register
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="User Registration" description="Allow new users to register" checked={flags.reg} onCheckedChange={set('reg')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Email Verification</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Require email verification for new users
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="Email Verification" description="Require email verification for new users" checked={flags.verify} onCheckedChange={set('verify')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Public API Access</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Allow unauthenticated API requests
-                  </p>
-                </div>
-                <Switch />
-              </div>
+              <SettingRow label="Public API Access" description="Allow unauthenticated API requests" checked={flags.publicApi} onCheckedChange={set('publicApi')} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -131,25 +130,21 @@ export function SettingsPage() {
         <TabsContent value="database" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Database Configuration</CardTitle>
-              <CardDescription>
-                Manage database connections and settings
-              </CardDescription>
+              <CardTitle className="text-lg">Database Configuration</CardTitle>
+              <CardDescription>Manage database connections and settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-4 p-3 border rounded-lg">
+              <div className="flex items-center gap-4 rounded-md border p-3">
                 <Database className="h-5 w-5 text-muted-foreground" />
                 <div className="flex-1">
-                  <p className="font-medium">SQLite (Default)</p>
-                  <p className="text-sm text-muted-foreground">
-                    file:data/fieldstone.db
-                  </p>
+                  <p className="text-sm font-medium">SQLite (Default)</p>
+                  <p className="font-mono text-[13px] text-muted-foreground">file:data/fieldstone.db</p>
                 </div>
-                <Badge>Connected</Badge>
+                <Badge variant="success">Connected</Badge>
               </div>
-              
+
               <Separator />
-              
+
               <div className="grid gap-2">
                 <Label>Backup Schedule</Label>
                 <Select defaultValue="daily">
@@ -165,17 +160,9 @@ export function SettingsPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <div className="space-y-0.5">
-                  <Label>Auto-backup</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically backup database
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="Auto-backup" description="Automatically backup database" checked={flags.autobackup} onCheckedChange={set('autobackup')} />
 
-              <div className="flex gap-2 pt-4">
+              <div className="flex gap-2 pt-2">
                 <Button variant="outline">
                   <HardDrive className="mr-2 h-4 w-4" />
                   Backup Now
@@ -192,65 +179,33 @@ export function SettingsPage() {
         <TabsContent value="security" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Authentication</CardTitle>
-              <CardDescription>
-                Configure authentication settings
-              </CardDescription>
+              <CardTitle className="text-lg">Authentication</CardTitle>
+              <CardDescription>Configure authentication settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>JWT Authentication</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable JWT-based authentication
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="JWT Authentication" description="Enable JWT-based authentication" checked={flags.jwt} onCheckedChange={set('jwt')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Rate Limiting</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Limit requests per IP address
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="Rate Limiting" description="Limit requests per IP address" checked={flags.rate} onCheckedChange={set('rate')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>WebAuthn / Passkeys</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable passwordless authentication
-                  </p>
-                </div>
-                <Switch />
-              </div>
+              <SettingRow label="WebAuthn / Passkeys" description="Enable passwordless authentication" checked={flags.passkey} onCheckedChange={set('passkey')} />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>API Keys</CardTitle>
-              <CardDescription>
-                Manage API keys for external access
-              </CardDescription>
+              <CardTitle className="text-lg">API Keys</CardTitle>
+              <CardDescription>Manage API keys for external access</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Key className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium text-sm">Production API Key</p>
-                      <p className="text-xs text-muted-foreground">
-                        Created: Jan 1, 2024
-                      </p>
-                    </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="flex items-center gap-3">
+                  <Key className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Production API Key</p>
+                    <p className="text-xs text-muted-foreground">Created: Jan 1, 2026</p>
                   </div>
-                  <Button variant="outline" size="sm">Revoke</Button>
                 </div>
+                <Button variant="outline" size="sm">Revoke</Button>
               </div>
               <Button variant="outline" className="mt-4 w-full">
                 <Key className="mr-2 h-4 w-4" />
@@ -263,41 +218,15 @@ export function SettingsPage() {
         <TabsContent value="notifications" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Email Settings</CardTitle>
-              <CardDescription>
-                Configure email notifications
-              </CardDescription>
+              <CardTitle className="text-lg">Email Settings</CardTitle>
+              <CardDescription>Configure email notifications</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>New User Registration</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Notify when a new user registers
-                  </p>
-                </div>
-                <Switch />
-              </div>
+              <SettingRow label="New User Registration" description="Notify when a new user registers" checked={flags.notifReg} onCheckedChange={set('notifReg')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Failed Login Attempts</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Alert on suspicious login activity
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="Failed Login Attempts" description="Alert on suspicious login activity" checked={flags.notifFail} onCheckedChange={set('notifFail')} />
               <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>System Alerts</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive critical system notifications
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <SettingRow label="System Alerts" description="Receive critical system notifications" checked={flags.notifSys} onCheckedChange={set('notifSys')} />
             </CardContent>
           </Card>
         </TabsContent>

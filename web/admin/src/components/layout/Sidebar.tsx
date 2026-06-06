@@ -10,18 +10,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Box,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/context/theme'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -41,6 +35,11 @@ const navigation = [
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const location = useLocation()
   const { theme, setTheme } = useTheme()
+  const isDark =
+    theme === 'dark' ||
+    (theme === 'system' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   return (
     <aside
@@ -85,49 +84,52 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 border-t p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn(
-                'w-full justify-start gap-2',
-                isCollapsed && 'justify-center px-2'
-              )}
-            >
-              <div className="h-5 w-5 rounded-full bg-primary flex-shrink-0" />
-              {!isCollapsed && (
-                <>
-                  <span className="flex-1 text-left">Admin</span>
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-            </DropdownMenuItem>
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Log out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="mt-2 w-full"
-          onClick={onToggle}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
+      {/* Footer: account + theme + collapse */}
+      <div className="absolute bottom-0 left-0 right-0 flex flex-col gap-1 border-t p-2">
+        <div
+          className={cn(
+            'flex items-center gap-2.5 rounded-md px-2.5 py-2',
+            isCollapsed && 'justify-center px-0'
           )}
-        </Button>
+          title="admin@fieldstone.io"
+        >
+          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+            A
+          </span>
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold leading-tight">Admin</div>
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                admin@fieldstone.io
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 flex-1"
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            title="Toggle theme"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 flex-1"
+            onClick={onToggle}
+            title={isCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </aside>
   )

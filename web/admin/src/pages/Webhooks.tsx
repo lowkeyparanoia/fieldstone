@@ -38,7 +38,7 @@ const mockWebhooks = [
     url: 'https://api.example.com/webhooks/users',
     events: ['user.created'],
     status: 'active',
-    lastTriggered: '2024-01-15T10:30:00Z',
+    lastTriggered: '2026-06-06T10:30:00Z',
     successRate: 98.5,
   },
   {
@@ -47,7 +47,7 @@ const mockWebhooks = [
     url: 'https://api.example.com/webhooks/orders',
     events: ['record.created', 'record.updated'],
     status: 'active',
-    lastTriggered: '2024-01-15T09:15:00Z',
+    lastTriggered: '2026-06-06T09:15:00Z',
     successRate: 99.2,
   },
   {
@@ -56,7 +56,7 @@ const mockWebhooks = [
     url: 'https://api.example.com/webhooks/alerts',
     events: ['record.updated'],
     status: 'paused',
-    lastTriggered: '2024-01-14T16:45:00Z',
+    lastTriggered: '2026-06-05T16:45:00Z',
     successRate: 85.0,
   },
 ]
@@ -67,7 +67,7 @@ const mockLogs = [
     webhookId: '1',
     status: 'success',
     statusCode: 200,
-    timestamp: '2024-01-15T10:30:00Z',
+    timestamp: '2026-06-06T10:30:00Z',
     duration: 120,
     response: '{"received": true}',
   },
@@ -76,7 +76,7 @@ const mockLogs = [
     webhookId: '1',
     status: 'error',
     statusCode: 500,
-    timestamp: '2024-01-15T10:25:00Z',
+    timestamp: '2026-06-06T10:25:00Z',
     duration: 5000,
     error: 'Internal Server Error',
   },
@@ -85,7 +85,7 @@ const mockLogs = [
     webhookId: '2',
     status: 'success',
     statusCode: 204,
-    timestamp: '2024-01-15T09:15:00Z',
+    timestamp: '2026-06-06T09:15:00Z',
     duration: 85,
   },
 ]
@@ -105,7 +105,7 @@ export function WebhooksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Webhooks</h1>
           <p className="text-muted-foreground">

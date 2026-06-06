@@ -2,39 +2,26 @@ import { useDashboardStats, useDashboardActivities, useHealthStatus } from '@/ho
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Database, 
-  Users, 
+import {
+  Database,
+  Users,
   Activity,
   HardDrive,
   Zap,
   TrendingUp,
-  CheckCircle2,
-  XCircle,
-  AlertCircle
 } from 'lucide-react'
-import { formatNumber, formatBytes, formatRelativeTime } from '@/lib/utils'
+import { cn, formatNumber, formatBytes, formatRelativeTime } from '@/lib/utils'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { MOCK_STATS, MOCK_HEALTH, MOCK_ACTIVITIES, MOCK_CHART } from '@/lib/mock'
 
-// Mock data for the chart
-const mockChartData = [
-  { time: '00:00', requests: 120 },
-  { time: '04:00', requests: 80 },
-  { time: '08:00', requests: 340 },
-  { time: '12:00', requests: 520 },
-  { time: '16:00', requests: 680 },
-  { time: '20:00', requests: 420 },
-  { time: '23:59', requests: 280 },
-]
-
-function StatCard({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
+function StatCard({
+  title,
+  value,
+  description,
+  icon: Icon,
   trend,
-  isLoading 
-}: { 
+  isLoading,
+}: {
   title: string
   value: string | number
   description: string
@@ -45,9 +32,7 @@ function StatCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
-          {title}
-        </CardTitle>
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -56,12 +41,10 @@ function StatCard({
         ) : (
           <>
             <div className="text-2xl font-bold">{value}</div>
-            <p className="text-xs text-muted-foreground">
-              {description}
-            </p>
+            <p className="text-xs text-muted-foreground">{description}</p>
             {trend && (
-              <div className="flex items-center text-xs text-emerald-600 mt-1">
-                <TrendingUp className="h-3 w-3 mr-1" />
+              <div className="mt-1 flex items-center text-xs text-emerald-500">
+                <TrendingUp className="mr-1 h-3 w-3" />
                 {trend}
               </div>
             )}
@@ -72,33 +55,39 @@ function StatCard({
   )
 }
 
-function StatusIndicator({ status, label }: { status: 'healthy' | 'unhealthy' | 'warning'; label: string }) {
-  const icons = {
-    healthy: CheckCircle2,
-    unhealthy: XCircle,
-    warning: AlertCircle,
-  }
-  
+function StatusDot({
+  status,
+  label,
+}: {
+  status: 'healthy' | 'unhealthy' | 'warning'
+  label: string
+}) {
   const colors = {
-    healthy: 'text-emerald-500',
-    unhealthy: 'text-destructive',
-    warning: 'text-amber-500',
+    healthy: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    unhealthy: 'bg-destructive',
   }
-  
-  const Icon = icons[status]
-  
   return (
-    <div className="flex items-center gap-2">
-      <Icon className={`h-5 w-5 ${colors[status]}`} />
-      <span className="text-sm">{label}</span>
+    <div className="flex items-center gap-2.5 text-sm">
+      <span className="relative flex">
+        {status === 'healthy' && (
+          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-60" />
+        )}
+        <span className={cn('h-2.5 w-2.5 rounded-full', colors[status])} />
+      </span>
+      <span>{label}</span>
     </div>
   )
 }
 
 export function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useDashboardStats()
-  const { data: activities, isLoading: activitiesLoading } = useDashboardActivities(10)
-  const { data: health, isLoading: healthLoading } = useHealthStatus()
+  const { data: statsData, isLoading: statsLoading } = useDashboardStats()
+  const { data: activitiesData } = useDashboardActivities(10)
+  const { data: healthData, isLoading: healthLoading } = useHealthStatus()
+
+  const stats = statsData ?? MOCK_STATS
+  const health = healthData ?? MOCK_HEALTH
+  const activities = activitiesData && activitiesData.length > 0 ? activitiesData : MOCK_ACTIVITIES
 
   return (
     <div className="space-y-6">
@@ -114,7 +103,7 @@ export function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Records"
-          value={statsLoading ? '' : formatNumber(stats?.totalRecords || 0)}
+          value={formatNumber(stats.totalRecords)}
           description="Across all collections"
           icon={Database}
           trend="+12% from last month"
@@ -122,7 +111,7 @@ export function DashboardPage() {
         />
         <StatCard
           title="Total Users"
-          value={statsLoading ? '' : formatNumber(stats?.totalUsers || 0)}
+          value={formatNumber(stats.totalUsers)}
           description="Registered users"
           icon={Users}
           trend="+5 this week"
@@ -130,60 +119,52 @@ export function DashboardPage() {
         />
         <StatCard
           title="API Requests"
-          value={statsLoading ? '' : `${stats?.requestsPerMinute || 0}/min`}
+          value={`${stats.requestsPerMinute}/min`}
           description="Average in last hour"
           icon={Zap}
           isLoading={statsLoading}
         />
         <StatCard
           title="Storage Used"
-          value={statsLoading ? '' : formatBytes(stats?.storageUsed || 0)}
-          description={`of ${formatBytes(stats?.storageLimit || 10737418240)}`}
+          value={formatBytes(stats.storageUsed)}
+          description={`of ${formatBytes(stats.storageLimit)}`}
           icon={HardDrive}
           isLoading={statsLoading}
         />
       </div>
 
-      {/* Charts and Activity */}
+      {/* Chart + System Health */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Requests Chart */}
-        <Card className="col-span-4">
+        <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>API Requests</CardTitle>
-            <CardDescription>
-              Request volume over the last 24 hours
-            </CardDescription>
+            <CardTitle className="text-2xl">API Requests</CardTitle>
+            <CardDescription>Request volume over the last 24 hours</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={mockChartData}>
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={MOCK_CHART} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="time" 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--background))',
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--popover))',
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px'
+                    borderRadius: '8px',
+                    fontSize: '12px',
                   }}
                 />
                 <Area
                   type="monotone"
                   dataKey="requests"
                   stroke="hsl(var(--primary))"
+                  strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorRequests)"
                 />
@@ -192,13 +173,10 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* System Health */}
-        <Card className="col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>System Health</CardTitle>
-            <CardDescription>
-              Current status of system services
-            </CardDescription>
+            <CardTitle className="text-2xl">System Health</CardTitle>
+            <CardDescription>Current status of system services</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {healthLoading ? (
@@ -209,21 +187,21 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <StatusIndicator 
-                  status={health?.services.database === 'healthy' ? 'healthy' : 'unhealthy'} 
+                <StatusDot
+                  status={health.services.database === 'healthy' ? 'healthy' : 'unhealthy'}
                   label="Database Connection"
                 />
-                <StatusIndicator 
-                  status={health?.services.api === 'healthy' ? 'healthy' : 'unhealthy'} 
+                <StatusDot
+                  status={health.services.api === 'healthy' ? 'healthy' : 'unhealthy'}
                   label="API Server"
                 />
-                <StatusIndicator 
-                  status={health?.services.cache === 'healthy' ? 'healthy' : 'warning'} 
+                <StatusDot
+                  status={health.services.cache === 'healthy' ? 'healthy' : 'warning'}
                   label="Cache Layer"
                 />
-                <div className="mt-4 pt-4 border-t">
+                <div className="mt-4 border-t pt-4">
                   <p className="text-xs text-muted-foreground">
-                    Last checked: {health?.timestamp ? formatRelativeTime(health.timestamp) : 'Never'}
+                    Last checked: {health.timestamp ? formatRelativeTime(health.timestamp) : 'Never'}
                   </p>
                 </div>
               </>
@@ -235,47 +213,29 @@ export function DashboardPage() {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest actions performed in the system
-          </CardDescription>
+          <CardTitle className="text-2xl">Recent Activity</CardTitle>
+          <CardDescription>Latest actions performed in the system</CardDescription>
         </CardHeader>
-        <CardContent>
-          {activitiesLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
+        <CardContent className="space-y-4">
+          {activities.map((activity) => (
+            <div key={activity.id} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{activity.message}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {activity.userId && (
+                      <span className="font-mono">{activity.userId} · </span>
+                    )}
+                    {formatRelativeTime(activity.createdAt)}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline">{activity.type.replace(/_/g, ' ')}</Badge>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {activities && activities.length > 0 ? (
-                activities.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{activity.message}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.userId && `by ${activity.userId} • `}
-                          {formatRelativeTime(activity.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline">
-                      {activity.type.replace(/_/g, ' ')}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  No recent activity
-                </p>
-              )}
-            </div>
-          )}
+          ))}
         </CardContent>
       </Card>
     </div>

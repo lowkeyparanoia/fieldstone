@@ -6,6 +6,7 @@ import { Layout } from '@/components/layout/Layout'
 import { LoginPage } from '@/pages/Login'
 import { DashboardPage } from '@/pages/Dashboard'
 import { CollectionsPage } from '@/pages/Collections'
+import { RecordBrowserPage } from '@/pages/RecordBrowser'
 import { UsersPage } from '@/pages/Users'
 import { ActivityPage } from '@/pages/Activity'
 import { PluginsPage } from '@/pages/Plugins'
@@ -58,6 +59,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CollectionsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/collections/:id"
+        element={
+          <ProtectedRoute>
+            <RecordBrowserPage />
           </ProtectedRoute>
         }
       />
