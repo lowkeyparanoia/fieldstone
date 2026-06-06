@@ -214,3 +214,18 @@ docs-serve:
 docs-build:
 	@which mkdocs > /dev/null || (echo "Installing mkdocs..." && pip install mkdocs mkdocs-material)
 	cd docs && mkdocs build
+
+# ---- WASM example plugin (slugify) ----
+# Build the Rust -> wasm32-unknown-unknown example plugin.
+plugin-build:
+	@which rustc > /dev/null || (echo "install Rust: https://rustup.rs" && exit 1)
+	rustup target add wasm32-unknown-unknown
+	internal/plugins/examples/slugify/build.sh
+
+# Run the example plugin against mock data via the real plugin runtime (needs Go 1.24).
+plugin-test:
+	go test ./internal/plugins -run TestSlugify -v
+
+# Run the standalone harness (works on older Go; uses its own go.mod).
+plugin-demo:
+	cd internal/plugins/examples/slugify/harness && go run .

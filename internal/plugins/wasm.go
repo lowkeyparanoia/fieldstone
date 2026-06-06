@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
@@ -36,7 +37,7 @@ type Plugin struct {
 	Version     string
 	Runtime     *Runtime
 	Module      wazero.CompiledModule
-	Instance    wazero.Module
+	Instance    api.Module
 	MemoryLimit int32 // In bytes
 	Timeout     time.Duration
 }
