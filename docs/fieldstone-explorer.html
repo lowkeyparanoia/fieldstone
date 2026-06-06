@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fieldstone — Interactive Architecture & Operations</title>
+<style>
+  /* ============================================================
+     Fieldstone design tokens (lifted from web/admin/src/index.css)
+     Dark = navy void + electric-blue primary. Light = stone neutrals.
+     ============================================================ */
+  :root {
+    --background: 0 0% 100%; --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%; --muted: 60 4.8% 95.9%; --muted-foreground: 25 5.3% 44.7%;
+    --primary: 24 9.8% 10%; --primary-foreground: 60 9.1% 97.8%;
+    --border: 20 5.9% 90%; --ring: 20 14.3% 4.1%;
+    --success: 160 84% 39%; --warning: 38 92% 50%; --destructive: 0 84% 60%;
+    --accent: 270 70% 60%; --cyan: 190 80% 45%; --pink: 330 80% 60%; --blue: 210 90% 56%;
+    --radius: 12px;
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --shadow: 0 1px 2px rgba(0,0,0,.06);
+    --shadow-lg: 0 20px 40px -12px rgba(0,0,0,.25);
+  }
+  html.dark {
+    --background: 222 47% 7%; --foreground: 210 40% 96%;
+    --card: 222 47% 11%; --muted: 222 30% 15%; --muted-foreground: 215 20% 65%;
+    --primary: 210 100% 60%; --primary-foreground: 222 47% 7%;
+    --border: 222 30% 20%; --ring: 210 100% 60%;
+    --success: 158 64% 52%; --warning: 38 92% 55%; --destructive: 0 70% 60%;
+    --shadow-lg: 0 24px 50px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; scroll-behavior: smooth; }
+  body {
+    background: hsl(var(--background)); color: hsl(var(--foreground));
+    font-family: var(--font-sans); -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+  a { color: inherit; text-decoration: none; }
+  code, .mono { font-family: var(--font-mono); }
+  ::selection { background: hsl(var(--primary) / .3); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / .3); border-radius: 99px; }
+
+  /* ---- Top nav ---- */
+  header {
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+    background: hsl(var(--background) / .8); border-bottom: 1px solid hsl(var(--border));
+  }
+  .nav { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 18px;
+    padding: 0 24px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.02em; }
+  .brand .logo { width: 26px; height: 26px; display: grid; place-items: center; color: hsl(var(--primary)); }
+  .nav-links { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .nav-links a { padding: 7px 12px; border-radius: 8px; font-size: 13.5px; font-weight: 500;
+    color: hsl(var(--muted-foreground)); transition: all .15s; }
+  .nav-links a:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+  .theme-btn { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px;
+    border: 1px solid hsl(var(--border)); background: transparent; color: inherit; cursor: pointer; }
+  .theme-btn:hover { background: hsl(var(--muted)); }
+
+  /* ---- Layout ---- */
+  main { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 64px 0; border-top: 1px solid hsl(var(--border)); }
+  section:first-of-type { border-top: none; }
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: hsl(var(--primary)); font-weight: 600; margin-bottom: 10px; }
+  h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.05; letter-spacing: -.03em; margin: 0 0 18px; font-weight: 800; }
+  h2 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -.02em; margin: 0 0 12px; font-weight: 700; }
+  h3 { font-size: 18px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .lead { font-size: 18px; color: hsl(var(--muted-foreground)); max-width: 720px; }
+  p.muted { color: hsl(var(--muted-foreground)); max-width: 760px; }
+
+  /* ---- Hero ---- */
+  .hero { padding: 84px 0 56px; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; inset: -40% 30% auto -10%; height: 520px;
+    background: radial-gradient(closest-side, hsl(var(--primary) / .18), transparent);
+    filter: blur(20px); pointer-events: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 99px;
+    border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: 13px; font-weight: 500; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 99px; background: hsl(var(--primary)); }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; margin-top: 40px; }
+  .stat { border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat .big { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+  .stat .lbl { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+
+  /* ---- Generic cards ---- */
+  .grid { display: grid; gap: 16px; }
+  .cols-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card { border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: var(--radius);
+    padding: 22px; box-shadow: var(--shadow); }
+  .card .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+    background: hsl(var(--primary) / .12); color: hsl(var(--primary)); margin-bottom: 12px; }
+  .card p { color: hsl(var(--muted-foreground)); font-size: 14.5px; margin: 0; }
+
+  /* ============================================================
+     Interactive architecture map
+     ============================================================ */
+  .arch-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+  @media (max-width: 900px){ .arch-wrap { grid-template-columns: 1fr; } }
+  .arch { display: flex; flex-direction: column; gap: 14px; }
+  .layer { border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 14px;
+    background: hsl(var(--card)); position: relative; }
+  .layer > .layer-h { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .layer-h .bar { width: 22px; height: 3px; border-radius: 2px; background: hsl(var(--primary)); }
+  .nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .node-btn { border: 1px solid hsl(var(--border)); background: hsl(var(--background)); border-radius: 9px;
+    padding: 9px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+    display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+  .node-btn:hover { border-color: hsl(var(--primary) / .6); transform: translateY(-1px); }
+  .node-btn.active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+  .node-btn .tag { width: 8px; height: 8px; border-radius: 99px; flex-shrink: 0; }
+  .t-data { background: hsl(var(--success)); } .t-svc { background: hsl(var(--primary)); }
+  .t-edge { background: hsl(var(--warning)); } .t-client { background: hsl(var(--accent)); }
+  .detail { position: sticky; top: 76px; border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    background: hsl(var(--card)); padding: 20px; box-shadow: var(--shadow); min-height: 260px; }
+  .detail .kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--primary)); }
+  .detail h3 { margin: 6px 0 4px; font-size: 20px; }
+  .detail .file { font-family: var(--font-mono); font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; word-break: break-all; }
+  .detail p { font-size: 14px; color: hsl(var(--foreground)); }
+  .detail .pb { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: hsl(var(--primary) / .08);
+    border: 1px solid hsl(var(--primary) / .25); font-size: 13px; }
+  .detail .pb b { color: hsl(var(--primary)); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .pill { font-size: 11.5px; font-family: var(--font-mono); padding: 3px 9px; border-radius: 99px;
+    background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+
+  /* ============================================================
+     Operation flow player
+     ============================================================ */
+  .op-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+  .op-tab { padding: 9px 14px; border-radius: 99px; border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+    font-size: 13.5px; font-weight: 600; cursor: pointer; color: hsl(var(--muted-foreground)); transition: all .15s; }
+  .op-tab:hover { color: hsl(var(--foreground)); }
+  .op-tab.active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+  .stage-wrap { border: 1px solid hsl(var(--border)); border-radius: var(--radius); background:
+    radial-gradient(120% 120% at 50% 0%, hsl(var(--muted) / .5), hsl(var(--card))); overflow: hidden; }
+  .stage { position: relative; width: 100%; aspect-ratio: 1000 / 480; min-height: 300px; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .edge { stroke: hsl(var(--border)); stroke-width: 2.2; fill: none; }
+  .edge.on { stroke: hsl(var(--primary)); stroke-width: 3; stroke-dasharray: 7 7;
+    animation: dash 0.6s linear infinite; filter: drop-shadow(0 0 6px hsl(var(--primary) / .6)); }
+  @keyframes dash { to { stroke-dashoffset: -28; } }
+  .fnode { position: absolute; transform: translate(-50%,-50%); width: 132px;
+    border: 1px solid hsl(var(--border)); background: hsl(var(--card)); border-radius: 11px;
+    padding: 9px 11px; box-shadow: var(--shadow); transition: all .25s; text-align: left; }
+  .fnode .nl { font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; display:flex; align-items:center; gap:6px; }
+  .fnode .ns { font-size: 10.5px; color: hsl(var(--muted-foreground)); font-family: var(--font-mono); margin-top: 2px; line-height: 1.3; }
+  .fnode .ndot { width: 7px; height: 7px; border-radius: 99px; flex-shrink: 0; }
+  .fnode.active { border-color: transparent; box-shadow: 0 0 0 2px hsl(var(--primary)), var(--shadow-lg);
+    transform: translate(-50%,-50%) scale(1.06); background: hsl(var(--card)); }
+  .fnode.dim { opacity: .4; }
+  .player { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--card)); flex-wrap: wrap; }
+  .pbtn { width: 38px; height: 38px; border-radius: 9px; border: 1px solid hsl(var(--border)); background: hsl(var(--background));
+    color: inherit; cursor: pointer; display: grid; place-items: center; font-size: 15px; }
+  .pbtn:hover { border-color: hsl(var(--primary) / .6); }
+  .pbtn.primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+  .step-text { flex: 1; min-width: 220px; font-size: 14px; }
+  .step-text .sn { font-family: var(--font-mono); color: hsl(var(--primary)); font-weight: 700; margin-right: 8px; }
+  .progress { height: 4px; background: hsl(var(--muted)); border-radius: 99px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: hsl(var(--primary)); width: 0; transition: width .3s; }
+
+  /* ============================================================
+     PocketBase comparison
+     ============================================================ */
+  .cmp-controls { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cmp-tbl { border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; }
+  .cmp-row { display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; gap: 0; border-top: 1px solid hsl(var(--border)); }
+  .cmp-row:first-child { border-top: none; }
+  .cmp-head { background: hsl(var(--muted) / .5); font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+  .cmp-row > div { padding: 14px 16px; border-left: 1px solid hsl(var(--border)); font-size: 14px; }
+  .cmp-row > div:first-child { border-left: none; font-weight: 600; }
+  .cmp-row .pb-col { color: hsl(var(--muted-foreground)); }
+  .cmp-row .fs-col { background: hsl(var(--primary) / .04); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 99px; margin-left: 8px; vertical-align: middle; }
+  .b-plus { background: hsl(var(--success) / .16); color: hsl(var(--success)); }
+  .b-par { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+  @media (max-width: 760px){ .cmp-row { grid-template-columns: 1fr; } .cmp-row > div { border-left: none; border-top: 1px solid hsl(var(--border)); } .cmp-head { display: none; } .arch-wrap .detail { position: relative; top: 0; } }
+
+  footer { border-top: 1px solid hsl(var(--border)); padding: 40px 0 60px; color: hsl(var(--muted-foreground)); font-size: 13.5px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-top: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .ld { width: 9px; height: 9px; border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <div class="brand">
+      <span class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
+      Fieldstone
+    </div>
+    <div class="nav-links">
+      <a href="#intro">Overview</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#operations">Operations</a>
+      <a href="#pocketbase">vs PocketBase</a>
+      <a href="#concurrency">Concurrency</a>
+    </div>
+    <button class="theme-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme"></button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero" id="top" style="border:none">
+    <div class="eyebrow">Open-source Go BaaS · PocketBase alternative</div>
+    <h1>Fieldstone, explained<br>and in motion.</h1>
+    <p class="lead">A self-hostable backend-as-a-service written in Go — REST + gRPC APIs, realtime WebSockets,
+      multi-tenancy, JWT/passkey auth, file storage, background jobs, and sandboxed WASM plugins. This page is an
+      interactive tour of how the pieces fit together and where Fieldstone goes beyond PocketBase.</p>
+    <div class="chips">
+      <span class="chip"><span class="dot"></span>Go · chi router</span>
+      <span class="chip"><span class="dot"></span>SQLite · PostgreSQL · Memory</span>
+      <span class="chip"><span class="dot"></span>React 19 admin</span>
+      <span class="chip"><span class="dot"></span>WASM plugins</span>
+      <span class="chip"><span class="dot"></span>Realtime hub</span>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="big">3</div><div class="lbl">Pluggable storage backends</div></div>
+      <div class="stat"><div class="big">3</div><div class="lbl">Rate-limit algorithms</div></div>
+      <div class="stat"><div class="big">7</div><div class="lbl">Protected admin routes</div></div>
+      <div class="stat"><div class="big">WASM</div><div class="lbl">Sandboxed plugin runtime</div></div>
+    </div>
+  </section>
+
+  <!-- INTRO -->
+  <section id="intro">
+    <div class="eyebrow">What it is</div>
+    <h2>One Go binary, the whole backend</h2>
+    <p class="muted" style="margin-bottom:28px">PocketBase proved that a single self-hosted binary can replace a stack of
+      services. Fieldstone keeps that ergonomic core — collections, records, auth, realtime, an admin UI — and re-architects
+      it around interfaces so it scales past a single SQLite file: swap in PostgreSQL, add Redis caching, isolate tenants,
+      run background work, and extend the server with sandboxed WASM instead of recompiling.</p>
+    <div class="grid cols-3">
+      <div class="card"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></div>
+        <h3>Collections &amp; records</h3><p>Define typed schemas, then CRUD records through a consistent REST API — the same model the admin Record Browser drives.</p></div>
+      <div class="card"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div>
+        <h3>Realtime</h3><p>A WebSocket hub fans out create/update/delete events to subscribers with goroutine broadcasts — no polling.</p></div>
+      <div class="card"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div>
+        <h3>Extensible by design</h3><p>Interface-based backends, a worker-pool job queue, webhooks, gRPC, and a WASM plugin runtime — bolt on capability without forking the core.</p></div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture">
+    <div class="eyebrow">System architecture</div>
+    <h2>Click any component to inspect it</h2>
+    <p class="muted" style="margin-bottom:24px">Requests flow top-down: clients hit the chi router, pass a middleware chain,
+      reach a service, and resolve against a pluggable backend. Select a node to see its role, source file, and how it
+      improves on PocketBase.</p>
+    <div class="arch-wrap">
+      <div class="arch" id="archMap"></div>
+      <aside class="detail" id="archDetail"></aside>
+    </div>
+    <div class="legend">
+      <span><i class="ld" style="background:hsl(var(--accent))"></i> Clients</span>
+      <span><i class="ld" style="background:hsl(var(--warning))"></i> Edge / API</span>
+      <span><i class="ld" style="background:hsl(var(--primary))"></i> Services</span>
+      <span><i class="ld" style="background:hsl(var(--success))"></i> Data</span>
+    </div>
+  </section>
+
+  <!-- OPERATIONS -->
+  <section id="operations">
+    <div class="eyebrow">Operations, animated</div>
+    <h2>Trace a request, step by step</h2>
+    <p class="muted" style="margin-bottom:22px">Pick an operation, then step through (or play) the path the data takes across
+      the system. Highlighted edges show the active hop.</p>
+    <div class="op-tabs" id="opTabs"></div>
+    <div class="stage-wrap">
+      <div class="stage" id="stage"></div>
+      <div class="player">
+        <button class="pbtn" id="opPrev" title="Previous">‹</button>
+        <button class="pbtn primary" id="opPlay" title="Play">▶</button>
+        <button class="pbtn" id="opNext" title="Next">›</button>
+        <div class="step-text" id="opText"></div>
+      </div>
+      <div class="progress" style="margin:0 16px 14px"><i id="opProg"></i></div>
+    </div>
+    <div class="legend">
+      <span><i class="ld" style="background:hsl(var(--accent))"></i> Client</span>
+      <span><i class="ld" style="background:hsl(var(--warning))"></i> Middleware</span>
+      <span><i class="ld" style="background:hsl(var(--primary))"></i> Service</span>
+      <span><i class="ld" style="background:hsl(var(--success))"></i> Data / sink</span>
+    </div>
+  </section>
+
+  <!-- POCKETBASE -->
+  <section id="pocketbase">
+    <div class="eyebrow">Lineage &amp; differences</div>
+    <h2>How Fieldstone extends PocketBase</h2>
+    <p class="muted" style="margin-bottom:18px">Same single-binary spirit; a broader, more production-oriented architecture.
+      Filter to see where Fieldstone adds capability versus where it keeps parity.</p>
+    <div class="cmp-controls" id="cmpControls"></div>
+    <div class="cmp-tbl" id="cmpTable"></div>
+    <p class="muted" style="font-size:12.5px;margin-top:14px">Reflects this repository's architecture and stated roadmap;
+      some subsystems are scaffolded for extension. PocketBase remains an excellent, mature project — Fieldstone is a
+      Go re-architecture exploring where a BaaS goes when it must scale past one SQLite file.</p>
+  </section>
+
+  <!-- CONCURRENCY -->
+  <section id="concurrency">
+    <div class="eyebrow">Under the hood</div>
+    <h2>Built on Go concurrency primitives</h2>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Worker pools, bounded by semaphores</h3>
+        <p style="margin-bottom:12px">The job queue starts a worker per named queue (<code>default:5</code>,
+          <code>emails:3</code>, <code>webhooks:10</code>). A buffered channel acts as a semaphore so only N jobs run at once;
+          failures back off exponentially and exhausted retries land in a dead-letter queue.</p>
+        <pre class="mono" style="margin:0;font-size:12px;color:hsl(var(--muted-foreground));overflow:auto"><code>sem := make(chan struct{}, concurrency)
+sem &lt;- struct{}{}        // acquire (blocks at capacity)
+go func() {
+    defer func(){ &lt;-sem }() // release
+    executeJob(job)
+}()</code></pre>
+      </div>
+      <div class="card">
+        <h3>A hub that fans out to subscribers</h3>
+        <p style="margin-bottom:12px">The realtime <code>Manager</code> keeps a registry of WebSocket clients and their
+          subscriptions. When the backend emits an <code>Event</code>, the hub matches interested subscriptions and broadcasts
+          concurrently — each delivery on its own goroutine, guarded by <code>sync.RWMutex</code>.</p>
+        <div class="legend" style="margin-top:0">
+          <span><i class="ld" style="background:hsl(var(--primary))"></i> chi middleware chain</span>
+          <span><i class="ld" style="background:hsl(var(--success))"></i> graceful shutdown (SIGINT/SIGTERM)</span>
+          <span><i class="ld" style="background:hsl(var(--warning))"></i> context cancellation</span>
+        </div>
+        <p style="margin-top:14px">Each HTTP request already runs in its own goroutine (Go's net/http); Fieldstone layers
+          timeouts, context propagation, and a 30s drain on shutdown on top.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="brand" style="font-size:15px;margin-bottom:10px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>Fieldstone</div>
+    Interactive architecture &amp; operations explorer · generated for <span class="mono">lowkeyparanoia/fieldstone</span>.
+    Self-contained — open it in any browser, no build step.
+  </footer>
+
+</main>
+
+<script>
+/* =====================================================================
+   THEME TOGGLE
+   ===================================================================== */
+const root = document.documentElement;
+const themeBtn = document.getElementById('themeBtn');
+const SUN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+const MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+function syncTheme(){ const dark = root.classList.contains('dark'); themeBtn.innerHTML = dark ? SUN : MOON; }
+themeBtn.onclick = () => { root.classList.toggle('dark'); syncTheme(); };
+syncTheme();
+
+/* =====================================================================
+   ARCHITECTURE MAP
+   ===================================================================== */
+const ARCH = [
+  { layer: 'Clients', tag: 't-client', nodes: [
+    { id:'admin', label:'Admin Dashboard', file:'web/admin/', tech:['React 19','Vite','shadcn/ui','TanStack Query'],
+      desc:'The management console — Dashboard, Collections, Record Browser, Users, Activity, Plugins, Webhooks, Settings. Served by the Go server at /admin.',
+      pb:'PocketBase ships a Svelte admin; Fieldstone ships a React 19 + shadcn/ui admin matching its design system.' },
+    { id:'rest', label:'REST consumers', file:'http://host:8090/api', tech:['JSON','Bearer JWT','X-Tenant-ID'],
+      desc:'Any HTTP client. CRUD over collections/records, auth, users, tenants, and dashboard endpoints.',
+      pb:'Parity with PocketBase\'s REST surface, plus tenant-scoping headers.' },
+    { id:'grpcc', label:'gRPC clients', file:'internal/grpc/client.go', tech:['protobuf','HTTP/2'],
+      desc:'High-performance binary RPC for service-to-service traffic where REST overhead matters.',
+      pb:'PocketBase has no gRPC interface — this is net-new.' },
+    { id:'wsc', label:'WebSocket clients', file:'internal/realtime', tech:['WS upgrade','subscriptions'],
+      desc:'Long-lived connections that subscribe to collections/filters and receive live event pushes.',
+      pb:'PocketBase realtime uses SSE; Fieldstone uses a WebSocket hub.' },
+  ]},
+  { layer: 'Edge / API', tag: 't-edge', nodes: [
+    { id:'http', label:'HTTP server', file:'cmd/server/main.go', tech:['net/http','15s timeouts','graceful shutdown'],
+      desc:'Configured via flags + env. Read/Write timeouts, idle keep-alive, and a 30s graceful drain on SIGINT/SIGTERM.',
+      pb:'Adds explicit timeouts + graceful shutdown semantics around the standard library server.' },
+    { id:'router', label:'chi Router', file:'internal/api/server.go', tech:['go-chi','sub-routers','SPA fallback'],
+      desc:'Routes /health, /api/auth/*, protected /collections, /users, /tenants, /dashboard, and serves the admin SPA with index.html fallback.',
+      pb:'Comparable routing; organized into composable chi sub-routers.' },
+    { id:'mw-rl', label:'Rate Limiter', file:'internal/ratelimit/ratelimit.go', tech:['TokenBucket','SlidingWindow','FixedWindow','sync.RWMutex'],
+      desc:'Pluggable Limiter interface with three algorithms, thread-safe, configurable per-user/per-endpoint.',
+      pb:'A long-requested PocketBase feature — here it ships as a first-class, swappable limiter.' },
+    { id:'mw-auth', label:'Auth middleware', file:'internal/api/server.go', tech:['JWT','Authorization: Bearer'],
+      desc:'Verifies the JWT on protected groups and attaches the principal to the request context.',
+      pb:'Parity — JWT verification on protected routes.' },
+    { id:'mw-tenant', label:'Tenant resolver', file:'internal/api · X-Tenant-ID', tech:['row/schema/db isolation'],
+      desc:'Resolves the active tenant (header/JWT) and scopes every backend query to it.',
+      pb:'Multi-tenancy is not a built-in PocketBase concept — Fieldstone treats it as first-class.' },
+    { id:'mw-cache', label:'Cache middleware', file:'internal/cache/middleware.go', tech:['tenant/user-aware keys'],
+      desc:'Wraps read paths; builds cache keys from tenant + user + path and serves hits before touching the backend.',
+      pb:'PocketBase has no built-in caching layer.' },
+  ]},
+  { layer: 'Services', tag: 't-svc', nodes: [
+    { id:'records', label:'Collections / Records', file:'internal/api/handlers.go', tech:['schema validation','CRUD','pagination'],
+      desc:'The core data handlers — validate against a collection\'s SchemaField[] and read/write records through the backend.',
+      pb:'Parity with PocketBase\'s collections model.' },
+    { id:'auth', label:'Auth service', file:'internal/auth/auth.go', tech:['JWT HS256','bcrypt','24h tokens','refresh'],
+      desc:'Issues and verifies JWTs (issuer "fieldstone"), hashes passwords with bcrypt, supports refresh.',
+      pb:'Parity, with WebAuthn/passkeys alongside.' },
+    { id:'webauthn', label:'WebAuthn / Passkeys', file:'internal/webauthn/webauthn.go', tech:['FIDO2','passwordless'],
+      desc:'Passwordless authentication via platform/security-key credentials.',
+      pb:'Goes beyond PocketBase\'s default auth providers.' },
+    { id:'realtime', label:'Realtime Manager', file:'internal/realtime/manager.go', tech:['WS hub','Client/Event/Subscription','goroutine fan-out'],
+      desc:'Hub pattern: registers clients, matches subscriptions, and broadcasts events concurrently under RWMutex.',
+      pb:'WebSocket hub vs PocketBase\'s SSE realtime.' },
+    { id:'jobs', label:'Job Queue', file:'internal/jobs/queue.go', tech:['worker pools','semaphore','backoff','dead-letter'],
+      desc:'Named queues with bounded worker pools; handlers for email/webhook/import; retries with exponential backoff.',
+      pb:'Addresses PocketBase issue #317 — background jobs/workflows are not built in.' },
+    { id:'webhooks', label:'Webhooks', file:'internal/webhooks/webhooks.go', tech:['Webhook/Event/Delivery','stores'],
+      desc:'Event-driven HTTP callbacks with delivery tracking and success-rate accounting.',
+      pb:'First-class webhook delivery + logs.' },
+    { id:'plugins', label:'WASM Plugins', file:'internal/plugins/wasm.go', tech:['Runtime','Manager','sandbox','memory limit'],
+      desc:'Loads .wasm modules into a sandboxed runtime with a memory cap and restricted host access — extend logic in any language.',
+      pb:'PocketBase extends via Go hooks (recompile) or a JS VM; Fieldstone runs portable, sandboxed WASM.' },
+    { id:'storage', label:'File Storage', file:'internal/storage/storage.go', tech:['Storage interface','local','S3-compatible'],
+      desc:'Abstracted file storage — local filesystem in dev, S3-compatible in production.',
+      pb:'Parity, behind a swappable interface.' },
+    { id:'cache', label:'Cache', file:'internal/cache/cache.go', tech:['Cache interface','MemoryCache','RedisCache','TTL'],
+      desc:'Pluggable cache: in-memory by default, Redis for shared/horizontal deployments.',
+      pb:'No PocketBase equivalent — net-new.' },
+    { id:'openapi', label:'OpenAPI', file:'internal/openapi/openapi.go', tech:['reflection','Swagger'],
+      desc:'Generates an OpenAPI/Swagger spec from the API via reflection, served at /docs.',
+      pb:'Auto-generated API docs are not a PocketBase built-in.' },
+    { id:'grpc', label:'gRPC server', file:'internal/grpc/server.go', tech:['HTTP/2','protobuf'],
+      desc:'A gRPC surface over the same backend + auth services for high-throughput callers.',
+      pb:'Net-new interface.' },
+    { id:'migrate', label:'Migrations', file:'internal/migrate/migrate.go', tech:['versioned','up/down'],
+      desc:'Versioned schema migrations run by the migrate binary.',
+      pb:'Parity with PocketBase migrations.' },
+  ]},
+  { layer: 'Data', tag: 't-data', nodes: [
+    { id:'backend', label:'Backend interface', file:'internal/backend/backend.go', tech:['Backend','Tx','Subscription','Config'],
+      desc:'The abstraction that lets app code stay identical while the concrete store changes. Provides transactions and a change-event subscription channel.',
+      pb:'PocketBase is tied to SQLite; Fieldstone programs against an interface.' },
+    { id:'sqlite', label:'SQLite', file:'internal/backend/sqlite.go', tech:['embedded','WAL mode'],
+      desc:'The zero-config default — a single embedded file, WAL for concurrent reads.',
+      pb:'Same default DX as PocketBase.' },
+    { id:'postgres', label:'PostgreSQL', file:'internal/backend/postgres.go', tech:['pgx pool','MaxConns 20 / MinConns 5','RLS'],
+      desc:'The production path — connection pooling and room for row-level-security-based tenant isolation.',
+      pb:'PocketBase does not support PostgreSQL; this is a core differentiator.' },
+    { id:'memory', label:'Memory', file:'internal/backend/memory.go', tech:['in-process','tests'],
+      desc:'An in-memory backend for fast, isolated tests.',
+      pb:'Testing affordance via the same interface.' },
+  ]},
+];
+
+const archMap = document.getElementById('archMap');
+const archDetail = document.getElementById('archDetail');
+const nodeIndex = {};
+ARCH.forEach(L => {
+  const layer = document.createElement('div'); layer.className = 'layer';
+  layer.innerHTML = `<div class="layer-h"><span class="bar"></span>${L.layer}</div>`;
+  const nodes = document.createElement('div'); nodes.className = 'nodes';
+  L.nodes.forEach(n => {
+    nodeIndex[n.id] = n;
+    const b = document.createElement('button'); b.className = 'node-btn'; b.dataset.id = n.id;
+    b.innerHTML = `<span class="tag ${L.tag}"></span>${n.label}`;
+    b.onclick = () => selectNode(n.id);
+    nodes.appendChild(b);
+  });
+  layer.appendChild(nodes); archMap.appendChild(layer);
+});
+function selectNode(id){
+  document.querySelectorAll('.node-btn').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+  const n = nodeIndex[id];
+  archDetail.innerHTML = `
+    <div class="kicker">Component</div>
+    <h3>${n.label}</h3>
+    <div class="file">${n.file}</div>
+    <p>${n.desc}</p>
+    <div class="tags">${n.tech.map(t => `<span class="pill">${t}</span>`).join('')}</div>
+    <div class="pb"><b>vs PocketBase —</b> ${n.pb}</div>`;
+}
+selectNode('router');
+
+/* =====================================================================
+   OPERATION FLOW PLAYER
+   ===================================================================== */
+const K = { client:'hsl(var(--accent))', mw:'hsl(var(--warning))', svc:'hsl(var(--primary))', data:'hsl(var(--success))' };
+const OPS = {
+  rest: {
+    title: 'Authenticated REST write',
+    nodes: {
+      client:{label:'Client',sub:'POST /records',x:90,y:90,k:'client'},
+      rl:{label:'Rate Limiter',sub:'token bucket',x:300,y:70,k:'mw'},
+      auth:{label:'Auth MW',sub:'verify JWT',x:300,y:200,k:'mw'},
+      tenant:{label:'Tenant',sub:'scope tenant_id',x:300,y:330,k:'mw'},
+      handler:{label:'Handler',sub:'validate schema',x:540,y:200,k:'svc'},
+      backend:{label:'Backend',sub:'INSERT in tx',x:770,y:120,k:'data'},
+      cache:{label:'Cache',sub:'invalidate keys',x:770,y:270,k:'svc'},
+      hub:{label:'Realtime Hub',sub:'emit event',x:770,y:410,k:'svc'},
+      jobs:{label:'Jobs',sub:'enqueue webhook',x:540,y:410,k:'svc'},
+    },
+    edges:[['client','rl'],['rl','auth'],['auth','tenant'],['tenant','handler'],['handler','backend'],['backend','cache'],['backend','hub'],['handler','jobs']],
+    steps:[
+      {on:['client'],flow:[],t:'Client sends <code>POST /api/collections/{id}/records</code> with a <code>Bearer</code> token and <code>X-Tenant-ID</code>.'},
+      {on:['client','rl'],flow:['client>rl'],t:'The rate limiter checks the caller against a token-bucket budget (per IP / per user).'},
+      {on:['rl','auth'],flow:['rl>auth'],t:'Auth middleware verifies the JWT (HS256) and attaches the principal to the request context.'},
+      {on:['auth','tenant'],flow:['auth>tenant'],t:'The tenant resolver scopes the request to a <code>tenant_id</code> so data stays isolated.'},
+      {on:['tenant','handler'],flow:['tenant>handler'],t:'The handler validates the body against the collection\'s <code>SchemaField[]</code>.'},
+      {on:['handler','backend'],flow:['handler>backend'],t:'The backend performs the <code>INSERT</code> inside a transaction via the Backend interface.'},
+      {on:['backend','cache'],flow:['backend>cache'],t:'Affected cache keys for the collection are invalidated.'},
+      {on:['backend','hub'],flow:['backend>hub'],t:'A <code>record.create</code> event is emitted to the realtime hub for fan-out to subscribers.'},
+      {on:['handler','jobs'],flow:['handler>jobs'],t:'Webhook delivery is enqueued as a background job (async, retried).'},
+      {on:['client','handler'],flow:['handler>tenant','tenant>auth','auth>rl','rl>client'],t:'<code>201 Created</code> with the new record JSON returns to the client.'},
+    ]
+  },
+  realtime: {
+    title: 'Realtime subscription & broadcast',
+    nodes: {
+      a:{label:'Client A',sub:'WS subscribe',x:90,y:110,k:'client'},
+      hub:{label:'Realtime Manager',sub:'hub registry',x:380,y:200,k:'svc'},
+      sub:{label:'Subscriptions',sub:'match filters',x:620,y:90,k:'svc'},
+      src:{label:'Backend event',sub:'record changed',x:380,y:380,k:'data'},
+      b:{label:'Client B',sub:'receives push',x:830,y:200,k:'client'},
+      writer:{label:'Writer',sub:'POST /records',x:90,y:380,k:'client'},
+    },
+    edges:[['a','hub'],['hub','sub'],['src','hub'],['sub','b'],['writer','src']],
+    steps:[
+      {on:['a','hub'],flow:['a>hub'],t:'Client A upgrades to WebSocket and registers with the hub.'},
+      {on:['a','hub','sub'],flow:['hub>sub'],t:'It subscribes to a collection (optionally with a filter); the subscription is stored.'},
+      {on:['writer','src'],flow:['writer>src'],t:'Elsewhere, a write mutates a record — the backend produces a change <code>Event</code>.'},
+      {on:['src','hub'],flow:['src>hub'],t:'The event reaches the hub, which matches it against active subscriptions under <code>RWMutex</code>.'},
+      {on:['sub','b'],flow:['sub>b'],t:'Each matching client is broadcast to on its own goroutine — Client B receives an <code>OutgoingMessage</code>.'},
+    ]
+  },
+  jobs: {
+    title: 'Background job lifecycle',
+    nodes: {
+      api:{label:'API handler',sub:'enqueue()',x:90,y:200,k:'svc'},
+      store:{label:'Store',sub:'pending',x:300,y:200,k:'data'},
+      pool:{label:'Worker pool',sub:'semaphore N',x:520,y:120,k:'svc'},
+      run:{label:'Handler fn',sub:'execute',x:740,y:120,k:'svc'},
+      ok:{label:'Done',sub:'mark complete',x:900,y:230,k:'data'},
+      retry:{label:'Backoff',sub:'requeue',x:740,y:330,k:'mw'},
+      dlq:{label:'Dead letter',sub:'max retries',x:520,y:380,k:'data'},
+    },
+    edges:[['api','store'],['store','pool'],['pool','run'],['run','ok'],['run','retry'],['retry','store'],['retry','dlq']],
+    steps:[
+      {on:['api','store'],flow:['api>store'],t:'A handler enqueues a job (email / webhook / import); the store persists it as <code>pending</code>.'},
+      {on:['store','pool'],flow:['store>pool'],t:'A worker acquires a semaphore slot — only N jobs per queue run concurrently.'},
+      {on:['pool','run'],flow:['pool>run'],t:'The registered handler function executes the job, with panic recovery.'},
+      {on:['run','ok'],flow:['run>ok'],t:'On success the job is marked complete and the slot is released.'},
+      {on:['run','retry'],flow:['run>retry'],t:'On failure it backs off exponentially and is requeued.'},
+      {on:['retry','dlq'],flow:['retry>dlq'],t:'After the retry budget is exhausted, it lands in the dead-letter queue for inspection.'},
+    ]
+  },
+  plugin: {
+    title: 'Sandboxed WASM plugin',
+    nodes: {
+      hook:{label:'Trigger',sub:'record hook',x:90,y:200,k:'svc'},
+      mgr:{label:'Plugin Manager',sub:'load module',x:320,y:200,k:'svc'},
+      rt:{label:'WASM Runtime',sub:'instantiate',x:540,y:120,k:'svc'},
+      box:{label:'Sandbox',sub:'memory limit',x:540,y:320,k:'mw'},
+      call:{label:'Exported fn',sub:'process(JSON)',x:760,y:200,k:'svc'},
+      out:{label:'Result',sub:'apply / reject',x:920,y:200,k:'data'},
+    },
+    edges:[['hook','mgr'],['mgr','rt'],['rt','box'],['rt','call'],['box','call'],['call','out']],
+    steps:[
+      {on:['hook','mgr'],flow:['hook>mgr'],t:'A lifecycle event (e.g. before-create) triggers the plugin manager.'},
+      {on:['mgr','rt'],flow:['mgr>rt'],t:'The manager loads the <code>.wasm</code> module into the runtime and instantiates it.'},
+      {on:['rt','box'],flow:['rt>box'],t:'It runs inside a sandbox with a configured memory cap and no ambient system access.'},
+      {on:['call'],flow:['rt>call','box>call'],t:'The exported function is called with the record as JSON.'},
+      {on:['call','out'],flow:['call>out'],t:'The plugin returns transformed data or a validation verdict, which the host applies or rejects.'},
+    ]
+  },
+  auth: {
+    title: 'Login & JWT issuance',
+    nodes: {
+      client:{label:'Client',sub:'POST /auth/login',x:90,y:200,k:'client'},
+      h:{label:'Auth handler',sub:'/api/auth/login',x:320,y:200,k:'svc'},
+      be:{label:'Backend',sub:'load user',x:540,y:110,k:'data'},
+      bc:{label:'bcrypt',sub:'compare hash',x:540,y:300,k:'svc'},
+      jwt:{label:'JWT signer',sub:'HS256 · 24h',x:760,y:200,k:'svc'},
+      done:{label:'Client',sub:'store token',x:930,y:200,k:'client'},
+    },
+    edges:[['client','h'],['h','be'],['h','bc'],['bc','jwt'],['jwt','done']],
+    steps:[
+      {on:['client','h'],flow:['client>h'],t:'Client posts credentials to <code>/api/auth/login</code>.'},
+      {on:['h','be'],flow:['h>be'],t:'The handler loads the user by email (tenant-scoped) from the backend.'},
+      {on:['h','bc'],flow:['h>bc'],t:'<code>bcrypt.CompareHashAndPassword</code> checks the password against the stored hash.'},
+      {on:['bc','jwt'],flow:['bc>jwt'],t:'On match, a JWT is signed (issuer <code>fieldstone</code>, 24h) alongside a refresh token.'},
+      {on:['jwt','done'],flow:['jwt>done'],t:'The token + user return; the client stores <code>fieldstone_token</code> and sends it as <code>Bearer</code> thereafter.'},
+    ]
+  },
+};
+
+const opTabs = document.getElementById('opTabs');
+const stage = document.getElementById('stage');
+const opText = document.getElementById('opText');
+const opProg = document.getElementById('opProg');
+let curOp = 'rest', curStep = 0, playTimer = null;
+
+Object.entries(OPS).forEach(([key, op], i) => {
+  const t = document.createElement('button'); t.className = 'op-tab' + (i===0?' active':'');
+  t.textContent = op.title; t.dataset.k = key;
+  t.onclick = () => { stopPlay(); setOp(key); };
+  opTabs.appendChild(t);
+});
+
+function nodeCenter(op, id){ const n = op.nodes[id]; return { x:n.x, y:n.y }; }
+function setOp(key){
+  curOp = key; curStep = 0;
+  document.querySelectorAll('.op-tab').forEach(t => t.classList.toggle('active', t.dataset.k === key));
+  renderOp();
+  setStep(0);
+}
+function renderOp(){
+  const op = OPS[curOp];
+  let svg = '<svg viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet">';
+  svg += '<defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="hsl(var(--primary))"/></marker></defs>';
+  op.edges.forEach(([a,b]) => {
+    const p1 = nodeCenter(op,a), p2 = nodeCenter(op,b);
+    svg += `<line class="edge" id="ed-${a}-${b}" x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}"></line>`;
+  });
+  svg += '</svg>';
+  let html = svg;
+  Object.entries(op.nodes).forEach(([id,n]) => {
+    html += `<div class="fnode" id="fn-${id}" style="left:${n.x/1000*100}%;top:${n.y/480*100}%">
+      <div class="nl"><span class="ndot" style="background:${K[n.k]}"></span>${n.label}</div>
+      <div class="ns">${n.sub}</div></div>`;
+  });
+  stage.innerHTML = html;
+}
+function setStep(i){
+  const op = OPS[curOp]; const steps = op.steps;
+  curStep = (i + steps.length) % steps.length;
+  const step = steps[curStep];
+  Object.keys(op.nodes).forEach(id => {
+    const el = document.getElementById('fn-'+id);
+    el.classList.toggle('active', step.on.includes(id));
+    el.classList.toggle('dim', !step.on.includes(id));
+  });
+  op.edges.forEach(([a,b]) => {
+    const on = step.flow.includes(`${a}>${b}`) || step.flow.includes(`${b}>${a}`);
+    document.getElementById(`ed-${a}-${b}`).classList.toggle('on', on);
+  });
+  opText.innerHTML = `<span class="sn">${curStep+1}/${steps.length}</span>${step.t}`;
+  opProg.style.width = ((curStep+1)/steps.length*100) + '%';
+}
+function stopPlay(){ if(playTimer){ clearInterval(playTimer); playTimer=null; document.getElementById('opPlay').textContent='▶'; } }
+document.getElementById('opNext').onclick = () => { stopPlay(); setStep(curStep+1); };
+document.getElementById('opPrev').onclick = () => { stopPlay(); setStep(curStep-1); };
+document.getElementById('opPlay').onclick = function(){
+  if(playTimer){ stopPlay(); return; }
+  this.textContent='❚❚';
+  playTimer = setInterval(() => {
+    if(curStep === OPS[curOp].steps.length-1){ setStep(0); } else { setStep(curStep+1); }
+  }, 1900);
+};
+setOp('rest');
+
+/* =====================================================================
+   POCKETBASE COMPARISON
+   ===================================================================== */
+const CMP = [
+  { k:'plus', area:'Database', pb:'SQLite only', fs:'SQLite + PostgreSQL (pgx pool) + in-memory, behind one Backend interface' },
+  { k:'plus', area:'Multi-tenancy', pb:'Not built in (manual)', fs:'First-class — row / schema / database isolation per tenant' },
+  { k:'plus', area:'Background jobs', pb:'None (issue #317) — hooks only', fs:'Worker-pool queue: named queues, retries, exponential backoff, dead-letter' },
+  { k:'plus', area:'Rate limiting', pb:'Added later / basic', fs:'Pluggable: token-bucket, sliding-window, fixed-window' },
+  { k:'plus', area:'Plugins', pb:'Go hooks (recompile) or JS VM', fs:'Sandboxed WASM runtime — any language, memory-limited, no host access' },
+  { k:'plus', area:'Caching', pb:'None', fs:'Cache interface — in-memory or Redis, tenant/user-aware keys + middleware' },
+  { k:'plus', area:'gRPC', pb:'None', fs:'gRPC server over the same backend + auth services' },
+  { k:'plus', area:'API docs', pb:'Not auto-generated', fs:'OpenAPI/Swagger generated via reflection, served at /docs' },
+  { k:'plus', area:'Auth', pb:'Email · OAuth2 · OTP', fs:'JWT + bcrypt, plus WebAuthn / passkeys' },
+  { k:'par', area:'Realtime', pb:'SSE subscriptions', fs:'WebSocket hub with goroutine fan-out' },
+  { k:'par', area:'Single binary', pb:'Yes — Go binary', fs:'Yes — Go binary, graceful shutdown + timeouts' },
+  { k:'par', area:'Admin UI', pb:'Bundled Svelte admin', fs:'React 19 + shadcn/ui admin (this design system)' },
+  { k:'par', area:'File storage', pb:'Local / S3', fs:'Local / S3-compatible behind a Storage interface' },
+  { k:'par', area:'Migrations', pb:'Versioned migrations', fs:'Versioned up/down migrations' },
+];
+const cmpTable = document.getElementById('cmpTable');
+const cmpControls = document.getElementById('cmpControls');
+let cmpFilter = 'all';
+[['all','All'],['plus','Improvements'],['par','Parity']].forEach(([k,label],i) => {
+  const b = document.createElement('button'); b.className='op-tab'+(i===0?' active':''); b.textContent=label; b.dataset.k=k;
+  b.onclick = () => { cmpFilter=k; document.querySelectorAll('#cmpControls .op-tab').forEach(x=>x.classList.toggle('active',x.dataset.k===k)); renderCmp(); };
+  cmpControls.appendChild(b);
+});
+function renderCmp(){
+  const rows = CMP.filter(r => cmpFilter==='all' || r.k===cmpFilter);
+  let html = `<div class="cmp-row cmp-head"><div>Capability</div><div>PocketBase</div><div>Fieldstone</div></div>`;
+  rows.forEach(r => {
+    const badge = r.k==='plus' ? '<span class="badge b-plus">▲ extends</span>' : '<span class="badge b-par">= parity</span>';
+    html += `<div class="cmp-row">
+      <div>${r.area}${badge}</div>
+      <div class="pb-col">${r.pb}</div>
+      <div class="fs-col">${r.fs}</div></div>`;
+  });
+  cmpTable.innerHTML = html;
+}
+renderCmp();
+
+/* Active nav link on scroll */
+const navLinks = [...document.querySelectorAll('.nav-links a')];
+const sections = navLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting){
+    navLinks.forEach(a => a.style.color = a.getAttribute('href')==='#'+e.target.id ? 'hsl(var(--foreground))' : '');
+  }});
+}, { rootMargin: '-45% 0px -50% 0px' });
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
