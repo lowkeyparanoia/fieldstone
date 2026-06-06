@@ -1,0 +1,142 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "go.toolsManagement.autoUpdate": true,
+    "go.useLanguageServer": true,
+    "go.formatTool": "gofumpt",
+    "go.lintTool": "golangci-lint",
+    "go.lintOnSave": "workspace",
+    "go.vulncheck.OnSave": true,
+    "go.toolsManagement.autoUpdate": true,
+    "go.testOnSave": true,
+    "go.coverOnSave": true,
+    "go.coverageDecorator": {
+      "type": "gutter",
+      "coveredHighlightColor": "rgba(64,128,128,0.5)",
+      "uncoveredHighlightColor": "rgba(128,64,64,0.5)"
+    },
+    "go.diagnostic.vulncheck": "Off",
+    "go.diagnostic.annotations": {
+      "bounds": true,
+      "escape": true,
+      "inline": true,
+      "nil": true
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    },
+    "files.exclude": {
+      "**/.git": true,
+      "**/node_modules": true,
+      "**/vendor": true,
+      "**/*.exe": true,
+      "**/*.dll": true,
+      "**/*.so": true,
+      "**/*.dylib": true,
+      "**/tmp": true,
+      "**/.DS_Store": true
+    },
+    "files.watcherExclude": {
+      "**/vendor/**": true,
+      "**/node_modules/**": true,
+      "**/.git/objects/**": true
+    },
+    "search.exclude": {
+      "**/vendor": true,
+      "**/node_modules": true,
+      "**/*.min.js": true,
+      "**/*.map": true
+    },
+    "rest-client.environmentVariables": {
+      "local": {
+        "baseUrl": "http://localhost:8090",
+        "adminToken": ""
+      }
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "golang.go",
+      "humao.rest-client",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "svelte.svelte-vscode",
+      "dbaeumer.vscode-eslint",
+      "ms-vscode.test-adapter-converter",
+      "hbenl.vscode-test-explorer",
+      "ethan-reesor.vscode-go-test-adapter",
+      "github.vscode-github-actions",
+      "ms-vscode.vscode-json"
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Launch Server",
+        "type": "go",
+        "request": "launch",
+        "mode": "auto",
+        "program": "${workspaceFolder}/cmd/server/main.go",
+        "env": {
+          "FIELDSTONE_ENV": "development"
+        },
+        "args": ["serve"]
+      },
+      {
+        "name": "Launch Tests",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "program": "${workspaceFolder}",
+        "args": ["-v"]
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build",
+        "type": "shell",
+        "command": "go build -o bin/fieldstone ./cmd/server",
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "test",
+        "type": "shell",
+        "command": "go test -v ./...",
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "lint",
+        "type": "shell",
+        "command": "golangci-lint run",
+        "group": "build"
+      },
+      {
+        "label": "migrate up",
+        "type": "shell",
+        "command": "go run ./cmd/migrate up",
+        "group": "build"
+      },
+      {
+        "label": "migrate down",
+        "type": "shell",
+        "command": "go run ./cmd/migrate down",
+        "group": "build"
+      }
+    ]
+  }
+}

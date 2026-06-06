@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fieldstone",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "export PATH=/Users/Jre/go-install/go/bin:$PATH && cd /Users/Jre/Downloads/fieldstone && ./bin/fieldstone -backend sqlite -dsn data/fieldstone.db -jwt-secret 'test-secret-key-32chars-minimum!!'"],
+      "port": 8090
+    }
+  ]
+}

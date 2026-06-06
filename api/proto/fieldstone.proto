@@ -1,0 +1,303 @@
+syntax = "proto3";
+
+package fieldstone;
+
+option go_package = "github.com/fieldstone/fieldstone/api/proto;proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// FieldstoneService provides the main API for collections, records, and auth
+service FieldstoneService {
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // Collection operations
+  rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
+  rpc GetCollection(GetCollectionRequest) returns (Collection);
+  rpc CreateCollection(CreateCollectionRequest) returns (Collection);
+  rpc UpdateCollection(UpdateCollectionRequest) returns (Collection);
+  rpc DeleteCollection(DeleteCollectionRequest) returns (DeleteCollectionResponse);
+
+  // Record operations
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+  rpc GetRecord(GetRecordRequest) returns (Record);
+  rpc CreateRecord(CreateRecordRequest) returns (Record);
+  rpc UpdateRecord(UpdateRecordRequest) returns (Record);
+  rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
+  rpc SubscribeRecords(SubscribeRecordsRequest) returns (stream RecordEvent);
+
+  // Auth operations
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
+  rpc Me(MeRequest) returns (User);
+
+  // Real-time subscriptions
+  rpc Subscribe(SubscribeRequest) returns (stream Event);
+
+  // File operations
+  rpc UploadFile(stream UploadFileRequest) returns (File);
+  rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+}
+
+// Health check
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string version = 3;
+}
+
+// Field definition
+message Field {
+  string name = 1;
+  string type = 2;
+  bool required = 3;
+  google.protobuf.Struct options = 4;
+}
+
+// Collection
+message Collection {
+  string id = 1;
+  string name = 2;
+  string tenant_id = 3;
+  repeated Field fields = 4;
+  bool system = 5;
+  string list_rule = 6;
+  string view_rule = 7;
+  string create_rule = 8;
+  string update_rule = 9;
+  string delete_rule = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// Collection requests/responses
+message ListCollectionsRequest {
+  string tenant_id = 1;
+  int32 page = 2;
+  int32 per_page = 3;
+}
+
+message ListCollectionsResponse {
+  repeated Collection items = 1;
+  int32 total_items = 2;
+  int32 page = 3;
+  int32 per_page = 4;
+  int32 total_pages = 5;
+}
+
+message GetCollectionRequest {
+  string id = 1;
+  string tenant_id = 2;
+}
+
+message CreateCollectionRequest {
+  string name = 1;
+  string tenant_id = 2;
+  repeated Field fields = 3;
+  bool system = 4;
+  string list_rule = 5;
+  string view_rule = 6;
+  string create_rule = 7;
+  string update_rule = 8;
+  string delete_rule = 9;
+}
+
+message UpdateCollectionRequest {
+  string id = 1;
+  string name = 2;
+  repeated Field fields = 3;
+  string list_rule = 4;
+  string view_rule = 5;
+  string create_rule = 6;
+  string update_rule = 7;
+  string delete_rule = 8;
+}
+
+message DeleteCollectionRequest {
+  string id = 1;
+  string tenant_id = 2;
+}
+
+message DeleteCollectionResponse {
+  bool success = 1;
+}
+
+// Record
+message Record {
+  string id = 1;
+  string collection_id = 2;
+  string tenant_id = 3;
+  google.protobuf.Struct data = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// Record requests/responses
+message ListRecordsRequest {
+  string collection_id = 1;
+  string tenant_id = 2;
+  string filter = 3;
+  string sort = 4;
+  int32 page = 5;
+  int32 per_page = 6;
+  repeated string expand = 7;
+  repeated string fields = 8;
+}
+
+message ListRecordsResponse {
+  repeated Record items = 1;
+  int32 total_items = 2;
+  int32 page = 3;
+  int32 per_page = 4;
+  int32 total_pages = 5;
+}
+
+message GetRecordRequest {
+  string id = 1;
+  string collection_id = 2;
+  string tenant_id = 3;
+}
+
+message CreateRecordRequest {
+  string collection_id = 1;
+  string tenant_id = 2;
+  google.protobuf.Struct data = 3;
+}
+
+message UpdateRecordRequest {
+  string id = 1;
+  string collection_id = 2;
+  string tenant_id = 3;
+  google.protobuf.Struct data = 4;
+}
+
+message DeleteRecordRequest {
+  string id = 1;
+  string collection_id = 2;
+  string tenant_id = 3;
+}
+
+message DeleteRecordResponse {
+  bool success = 1;
+}
+
+// Subscription messages
+message SubscribeRecordsRequest {
+  string collection_id = 1;
+  string tenant_id = 2;
+  string filter = 3;
+}
+
+message RecordEvent {
+  enum Action {
+    CREATE = 0;
+    UPDATE = 1;
+    DELETE = 2;
+  }
+  Action action = 1;
+  Record record = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// Auth messages
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string tenant_id = 3;
+  google.protobuf.Struct metadata = 4;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string tenant_id = 3;
+}
+
+message AuthResponse {
+  string token = 1;
+  User record = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message MeRequest {}
+
+// User
+message User {
+  string id = 1;
+  string email = 2;
+  bool verified = 3;
+  google.protobuf.Struct metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// General subscription
+message SubscribeRequest {
+  repeated string topics = 1;  // "records.create", "users.update", etc.
+}
+
+message Event {
+  string id = 1;
+  string type = 2;
+  google.protobuf.Struct data = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// File operations
+message UploadFileRequest {
+  oneof data {
+    FileMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message FileMetadata {
+  string filename = 1;
+  string content_type = 2;
+  int64 size = 3;
+  string collection_id = 4;
+  string record_id = 5;
+}
+
+message File {
+  string id = 1;
+  string filename = 2;
+  string content_type = 3;
+  int64 size = 4;
+  string url = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message DownloadFileRequest {
+  string id = 1;
+}
+
+message DownloadFileResponse {
+  bytes chunk = 1;
+}
+
+message DeleteFileRequest {
+  string id = 1;
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+}

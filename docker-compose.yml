@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  # Main Fieldstone API Server
+  fieldstone:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fieldstone
+    restart: unless-stopped
+    ports:
+      - "8090:8090"      # HTTP API & Admin UI
+      - "50051:50051"    # gRPC
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/fieldstone?sslmode=disable
+      # - DATABASE_URL=sqlite:///data/fieldstone.db  # Uncomment for SQLite
+      
+      # Security
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_EXPIRY=1h
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=json
+      
+      # Server Configuration
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8090
+      - GRPC_PORT=50051
+      - ADMIN_UI_PATH=./web/admin/dist
+      
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=60
+      
+      # File Storage
+      - STORAGE_TYPE=local
+      - STORAGE_LOCAL_PATH=/data/files
+      - STORAGE_PUBLIC_URL=http://localhost:8090/files
+      
+      # Feature Flags
+      - ENABLE_WEBHOOKS=true
+      - ENABLE_PLUGINS=true
+      - ENABLE_REALTIME=true
+      
+      # Cache Configuration
+      - CACHE_TYPE=redis
+      - CACHE_REDIS_ADDR=redis:6379
+      - CACHE_DEFAULT_TTL=300s
+      
+    volumes:
+      - fieldstone_data:/data
+      - ./logs:/app/logs
+    networks:
+      - fieldstone-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (optional - remove if using SQLite)
+  postgres:
+    image: postgres:15-alpine
+    container_name: fieldstone-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fieldstone
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fieldstone-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"  # Expose for external access (optional)
+
+  # Redis for caching and session storage (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: fieldstone-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - fieldstone-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # MinIO for S3-compatible object storage (optional)
+  minio:
+    image: minio/minio:latest
+    container_name: fieldstone-minio
+    restart: unless-stopped
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - fieldstone-network
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Nginx Reverse Proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    container_name: fieldstone-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - fieldstone-network
+    depends_on:
+      - fieldstone
+    profiles:
+      - production  # Only start with: docker-compose --profile production up
+
+volumes:
+  fieldstone_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  fieldstone-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

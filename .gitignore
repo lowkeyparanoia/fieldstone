@@ -1,0 +1,91 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+fieldstone
+fieldstone-migrate
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/data/
+
+# Log files
+*.log
+logs/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+dist/
+build/
+
+# Uploads and storage
+uploads/
+storage/
+files/
+
+# Node modules (frontend)
+node_modules/
+
+# Frontend build
+web/admin/dist/
+web/admin/build/
+
+# Cache directories
+.cache/
+
+# Air live reload
+tmp/
+
+# Docker volumes
+docker-volumes/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+ssl/
+
+# Testing
+test-results/
+coverage/
+*.coverage
+
+# OS files
+Thumbs.db
+.DS_Store
