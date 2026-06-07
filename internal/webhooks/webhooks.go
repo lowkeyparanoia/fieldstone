@@ -108,9 +108,14 @@ func NewManager(store WebhookStore, delivery DeliveryStore) *Manager {
 
 // Start begins processing webhook events
 func (m *Manager) Start(workers int) {
-	for i := 0; i  workers; i++ {
+	for i := 0; i < workers; i++ {
 		go m.worker()
 	}
+}
+
+// Store returns the webhook store.
+func (m *Manager) Store() WebhookStore {
+	return m.store
 }
 
 // Stop gracefully shuts down webhook processing
@@ -122,9 +127,9 @@ func (m *Manager) Stop() {
 func (m *Manager) worker() {
 	for {
 		select {
-		case event := range m.hookQueue:
+		case event := <-m.hookQueue:
 			m.processEvent(event)
-		case m.quit:
+		case <-m.quit:
 			return
 		}
 	}
@@ -175,7 +180,7 @@ func (m *Manager) Trigger(ctx context.Context, eventType string, data interface{
 		
 		// Queue event
 		select {
-		case m.hookQueue struct{}{}event:
+		case m.hookQueue <- event:
 		default:
 			log.Warn().Str("webhook", webhook.ID).Msg("Webhook queue full, dropping event")
 		}
@@ -207,7 +212,7 @@ func (m *Manager) processEvent(event *Event) {
 		if err := m.deliver(ctx, webhook, event, delivery); err != nil {
 			// Retry with exponential backoff
 			delivery.Attempts++
-			if delivery.Attempts  webhook.Retries {
+			if delivery.Attempts >= webhook.Retries {
 				delivery.Status = "failed"
 				m.delivery.Update(ctx, delivery)
 				log.Error().
@@ -217,7 +222,7 @@ func (m *Manager) processEvent(event *Event) {
 					Msg("Webhook delivery failed after retries")
 			} else {
 				// Schedule retry
-				backoff := time.Duration(1delivery.Attempts) * time.Second
+				backoff := time.Duration(1<<delivery.Attempts) * time.Second
 				delivery.NextRetry = time.Now().Add(backoff)
 				m.delivery.Update(ctx, delivery)
 				log.Warn().
@@ -267,7 +272,7 @@ func (m *Manager) deliver(ctx context.Context, webhook *Webhook, event *Event, d
 	delivery.StatusCode = resp.StatusCode
 	
 	// Check status
-	if resp.StatusCode >= 200 && resp.StatusCode  300 {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		delivery.Status = "delivered"
 		m.delivery.Update(ctx, delivery)
 		log.Info().

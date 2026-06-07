@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -18,16 +22,24 @@ import (
 	"github.com/fieldstone/fieldstone/internal/auth"
 	"github.com/fieldstone/fieldstone/internal/backend"
 	"github.com/fieldstone/fieldstone/internal/cache"
+	"github.com/fieldstone/fieldstone/internal/cron"
+	"github.com/fieldstone/fieldstone/internal/functions"
 	"github.com/fieldstone/fieldstone/internal/jobs"
+	wasm "github.com/fieldstone/fieldstone/internal/plugins"
+	"github.com/fieldstone/fieldstone/internal/realtime"
+	"github.com/fieldstone/fieldstone/internal/storage"
+	"github.com/fieldstone/fieldstone/internal/webhooks"
 )
 
 func main() {
 	// Parse flags
 	var (
-		port        = flag.String("port", "8090", "Server port")
-		dsn         = flag.String("dsn", "fieldstone.db", "Database DSN")
-		backendType = flag.String("backend", "sqlite", "Backend type: sqlite, postgres, memory")
-		jwtSecret   = flag.String("jwt-secret", "", "JWT secret (default: auto-generated)")
+		port           = flag.String("port", "8090", "Server port")
+		dsn            = flag.String("dsn", "fieldstone.db", "Database DSN")
+		backendType    = flag.String("backend", "sqlite", "Backend type: sqlite, postgres, memory")
+		jwtSecret      = flag.String("jwt-secret", "", "JWT secret (default: auto-generated)")
+		storageType    = flag.String("storage-type", getEnv("STORAGE_TYPE", "local"), "Storage type: local, s3, none")
+		functionsHost  = flag.String("functions-host", getEnv("FUNCTIONS_HOST", ""), "Functions sidecar host")
 	)
 	flag.Parse()
 
@@ -85,6 +97,12 @@ func main() {
 	}
 	log.Info().Msg("Backend connected")
 
+	// Extract pgx pool if using postgres (for gateway, RLS, cron)
+	var pgPool *pgxpool.Pool
+	if pgBe, ok := be.(*backend.PostgresBackend); ok {
+		pgPool = pgBe.Pool()
+	}
+
 	// Initialize auth service
 	authService := auth.NewService(*jwtSecret, 24*time.Hour, "fieldstone")
 
@@ -115,8 +133,90 @@ func main() {
 		}
 	}
 
+	// Initialize storage
+	var storageBackend storage.Backend
+	if *storageType != "none" {
+		storageCfg := storage.Config{
+			Type:      *storageType,
+			LocalPath: getEnv("STORAGE_LOCAL_PATH", "./storage"),
+		}
+		storageBackend, err = storage.New(storageCfg)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initialize storage, continuing without storage")
+		} else {
+			log.Info().Str("type", *storageType).Msg("Storage initialized")
+		}
+	}
+
+	// Initialize realtime manager
+	rtManager := realtime.NewManager()
+	go rtManager.Run()
+	log.Info().Msg("Realtime manager started")
+
+	// Initialize webhooks
+	whStore := webhooks.NewMemoryStore()
+	whDeliveryStore := webhooks.NewMemoryDeliveryStore()
+	whManager := webhooks.NewManager(whStore, whDeliveryStore)
+	whManager.Start(3)
+	log.Info().Msg("Webhook manager started")
+
+	// Initialize functions proxy
+	var fnProxy *functions.Proxy
+	if *functionsHost != "" {
+		fnProxy, err = functions.NewProxy(*functionsHost)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initialize functions proxy")
+		} else {
+			log.Info().Str("host", *functionsHost).Msg("Functions proxy initialized")
+		}
+	}
+
+	// Initialize cron scheduler
+	scheduler := cron.NewScheduler(pgPool)
+	// Register some example jobs
+	_ = scheduler.Register(ctx, cron.Job{
+		ID:       "heartbeat",
+		Schedule: "@every 5m",
+		Task: func(ctx context.Context) error {
+			log.Debug().Msg("Cron heartbeat")
+			return nil
+		},
+	})
+
 	// Create API server
-	server := api.NewServer(be, authService, jobQueue, cacheInstance)
+	server := api.NewServer(be, authService, jobQueue, cacheInstance, pgPool, storageBackend, fnProxy)
+	server.SetRealtimeManager(rtManager)
+	server.SetWebhookManager(whManager)
+
+	// WASM functions runtime — in-process, sandboxed transforms via wazero.
+	// Loads any *.wasm under the plugins dir (set FIELDSTONE_WASM_DIR; defaults
+	// to the bundled slugify example) and exposes them at /api/functions/wasm/*.
+	if pluginMgr, err := wasm.NewManager(context.Background()); err != nil {
+		log.Error().Err(err).Msg("Failed to init WASM plugin manager")
+	} else {
+		wasmDir := getEnv("FIELDSTONE_WASM_DIR", "internal/plugins/examples/slugify")
+		loaded := 0
+		if entries, derr := os.ReadDir(wasmDir); derr == nil {
+			for _, e := range entries {
+				if e.IsDir() || filepath.Ext(e.Name()) != ".wasm" {
+					continue
+				}
+				bytes, rerr := os.ReadFile(filepath.Join(wasmDir, e.Name()))
+				if rerr != nil {
+					continue
+				}
+				id := strings.TrimSuffix(e.Name(), ".wasm")
+				if _, lerr := pluginMgr.Load(id, id, "1.0.0", bytes); lerr != nil {
+					log.Warn().Err(lerr).Str("plugin", id).Msg("Failed to load WASM plugin")
+					continue
+				}
+				loaded++
+			}
+		}
+		log.Info().Int("loaded", loaded).Str("dir", wasmDir).Msg("WASM functions runtime ready")
+		server.SetPluginManager(pluginMgr)
+		defer pluginMgr.Close()
+	}
 
 	// Setup HTTP server
 	srv := &http.Server{
@@ -203,11 +303,12 @@ func initJobQueue(be backend.Backend) *jobs.Queue {
 
 // generateSecret creates a random secret for JWT signing
 func generateSecret() string {
+	// crypto/rand reads exactly 32 bytes from the OS CSPRNG. (The previous
+	// implementation did os.ReadFile("/dev/urandom"), which tries to read the
+	// entire — infinite — device and hangs the server on startup.)
 	b := make([]byte, 32)
-	if _, err := os.ReadFile("/dev/urandom"); err == nil {
-		f, _ := os.Open("/dev/urandom")
-		defer f.Close()
-		f.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatal().Err(err).Msg("Failed to generate JWT secret")
 	}
 	return fmt.Sprintf("%x", b)
 }

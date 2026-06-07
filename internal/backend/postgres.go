@@ -118,6 +118,18 @@ func (b *PostgresBackend) initializeSchema() error {
 		END;
 		$$ LANGUAGE plpgsql;
 
+		CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
+		BEGIN
+			RETURN NULLIF(current_setting('request.jwt.claims', TRUE)::json->>'sub', '')::UUID;
+		END;
+		$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+		CREATE OR REPLACE FUNCTION auth.role() RETURNS TEXT AS $$
+		BEGIN
+			RETURN COALESCE(current_setting('request.jwt.claims', TRUE)::json->>'role', 'authenticated');
+		END;
+		$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 		-- Enable RLS on tables
 		ALTER TABLE _collections ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE _users ENABLE ROW LEVEL SECURITY;
@@ -136,6 +148,11 @@ func (b *PostgresBackend) initializeSchema() error {
 
 func (b *PostgresBackend) Ping(ctx context.Context) error {
 	return b.pool.Ping(ctx)
+}
+
+// Pool returns the underlying pgxpool.Pool.
+func (b *PostgresBackend) Pool() *pgxpool.Pool {
+	return b.pool
 }
 
 func (b *PostgresBackend) Close() error {

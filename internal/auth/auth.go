@@ -35,12 +35,15 @@ func NewService(secret string, tokenExpiry time.Duration, issuer string) *Servic
 	}
 }
 
-// Claims represents JWT claims
+// Claims represents JWT claims (Supabase-compatible)
 type Claims struct {
-	UserID   string `json:"userId"`
-	TenantID string `json:"tenantId"`
-	Email    string `json:"email"`
-	TokenKey string `json:"tokenKey"`
+	UserID      string                 `json:"userId"`
+	TenantID    string                 `json:"tenantId"`
+	Email       string                 `json:"email"`
+	TokenKey    string                 `json:"tokenKey"`
+	Role        string                 `json:"role"`
+	AppMetadata map[string]interface{} `json:"app_metadata,omitempty"`
+	UserMetadata map[string]interface{} `json:"user_metadata,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -51,16 +54,28 @@ type TokenPair struct {
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// GenerateTokenPair creates new access and refresh tokens
-func (s *Service) GenerateTokenPair(userID, tenantID, email, tokenKey string) (*TokenPair, error) {
+// GenerateTokenPair creates new access and refresh tokens (Supabase-compatible claims)
+func (s *Service) GenerateTokenPair(userID, tenantID, email, tokenKey, role string, appMeta, userMeta map[string]interface{}) (*TokenPair, error) {
 	now := time.Now()
 	expiry := now.Add(s.tokenExpiry)
 
+	if appMeta == nil {
+		appMeta = make(map[string]interface{})
+	}
+	if userMeta == nil {
+		userMeta = make(map[string]interface{})
+	}
+	appMeta["provider"] = "email"
+	appMeta["providers"] = []string{"email"}
+
 	accessClaims := Claims{
-		UserID:   userID,
-		TenantID: tenantID,
-		Email:    email,
-		TokenKey: tokenKey,
+		UserID:       userID,
+		TenantID:     tenantID,
+		Email:        email,
+		TokenKey:     tokenKey,
+		Role:         role,
+		AppMetadata:  appMeta,
+		UserMetadata: userMeta,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiry),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -151,9 +166,11 @@ type AuthContextKey struct{}
 
 // Context holds authentication context
 type Context struct {
-	UserID   string
-	TenantID string
-	Email    string
+	UserID    string
+	TenantID  string
+	Email     string
+	Role      string
+	RawClaims map[string]interface{}
 }
 
 // WithContext adds auth context to a context

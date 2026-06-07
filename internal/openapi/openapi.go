@@ -5,7 +5,6 @@ package openapi
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"reflect"
 	"strings"

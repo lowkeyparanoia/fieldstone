@@ -480,7 +480,7 @@ func ExampleImport() {
 John Doe,30,john@example.com
 Jane Smith,25,jane@example.com`
 
-	result, err := importer.ImportCSV(context.Background(), strings.NewReader(csvData), ImportConfig{
+	result, _ := importer.ImportCSV(context.Background(), strings.NewReader(csvData), ImportConfig{
 		CollectionID: "users",
 		TenantID:     "default",
 		Format:       "csv",

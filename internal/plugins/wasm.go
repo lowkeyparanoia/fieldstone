@@ -234,6 +234,15 @@ func (m *Manager) Get(id string) (*Plugin, bool) {
 	return plugin, ok
 }
 
+// List returns metadata for every loaded plugin (id, name, version).
+func (m *Manager) List() []map[string]string {
+	out := make([]map[string]string, 0, len(m.plugins))
+	for id, p := range m.plugins {
+		out = append(out, map[string]string{"id": id, "name": p.Name, "version": p.Version})
+	}
+	return out
+}
+
 // Unload removes a plugin
 func (m *Manager) Unload(id string) error {
 	plugin, ok := m.plugins[id]

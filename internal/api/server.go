@@ -13,35 +13,58 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/fieldstone/fieldstone/internal/auth"
 	"github.com/fieldstone/fieldstone/internal/backend"
 	"github.com/fieldstone/fieldstone/internal/cache"
+	"github.com/fieldstone/fieldstone/internal/functions"
+	"github.com/fieldstone/fieldstone/internal/gateway"
 	"github.com/fieldstone/fieldstone/internal/jobs"
+	wasm "github.com/fieldstone/fieldstone/internal/plugins"
+	"github.com/fieldstone/fieldstone/internal/realtime"
+	"github.com/fieldstone/fieldstone/internal/storage"
+	"github.com/fieldstone/fieldstone/internal/webhooks"
 	"github.com/fieldstone/fieldstone/pkg/models"
 )
 
 // Server holds all API dependencies
 type Server struct {
-	router  *chi.Mux
-	backend backend.Backend
-	auth    *auth.Service
-	jobs    *jobs.Queue
-	cache   cache.Cache
-	logger  zerolog.Logger
+	router         *chi.Mux
+	backend        backend.Backend
+	auth           *auth.Service
+	jobs           *jobs.Queue
+	cache          cache.Cache
+	logger         zerolog.Logger
+	pool           *pgxpool.Pool
+	gateway        *gateway.Gateway
+	graphql        *gateway.GraphQLGateway
+	realtime       *realtime.Manager
+	storage        storage.Backend
+	webhookManager *webhooks.Manager
+	functionsProxy *functions.Proxy
+	pluginManager  *wasm.Manager // in-process WASM functions runtime
 }
 
 // NewServer creates a new API server
-func NewServer(be backend.Backend, authService *auth.Service, jobQueue *jobs.Queue, cache cache.Cache) *Server {
+func NewServer(be backend.Backend, authService *auth.Service, jobQueue *jobs.Queue, cache cache.Cache, pool *pgxpool.Pool, storageBackend storage.Backend, functionsProxy *functions.Proxy) *Server {
 	s := &Server{
-		router:  chi.NewRouter(),
-		backend: be,
-		auth:    authService,
-		jobs:    jobQueue,
-		cache:   cache,
-		logger:  log.Logger,
+		router:         chi.NewRouter(),
+		backend:        be,
+		auth:           authService,
+		jobs:           jobQueue,
+		cache:          cache,
+		logger:         log.Logger,
+		pool:           pool,
+		storage:        storageBackend,
+		functionsProxy: functionsProxy,
+	}
+
+	if pool != nil {
+		s.gateway = gateway.NewGateway(pool)
+		s.graphql = gateway.NewGraphQLGateway(pool)
 	}
 
 	s.setupMiddleware()
@@ -123,7 +146,21 @@ func (s *Server) setupRoutes() {
 			r.Post("/login", s.handleLogin)
 			r.Post("/refresh", s.handleRefresh)
 			r.Post("/logout", s.handleLogout)
+			r.Post("/otp/send", s.handleSendOTP)
+			r.Post("/otp/verify", s.handleVerifyOTP)
+			r.Post("/magiclink", s.handleMagicLink)
+			r.Post("/recover", s.handlePasswordReset)
+			r.Get("/oauth/{provider}", s.handleOAuthRedirect)
+			r.Get("/oauth/callback", s.handleOAuthCallback)
 		})
+
+		// Gateway (auto-REST over real tables) — protected
+		if s.gateway != nil && s.gateway.HasPool() {
+			r.Group(func(r chi.Router) {
+				r.Use(s.authMiddleware)
+				s.gateway.RegisterRoutes(r)
+			})
+		}
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
@@ -162,10 +199,58 @@ func (s *Server) setupRoutes() {
 				r.Delete("/{id}", s.handleDeleteTenant)
 			})
 
+			// Storage
+			r.Route("/storage", func(r chi.Router) {
+				r.Post("/buckets", s.handleCreateBucket)
+				r.Get("/buckets", s.handleListBuckets)
+				r.Delete("/buckets/{bucket}", s.handleDeleteBucket)
+				r.Post("/buckets/{bucket}/objects", s.handleUploadObject)
+				r.Get("/buckets/{bucket}/objects/{path:*}", s.handleDownloadObject)
+				r.Delete("/buckets/{bucket}/objects/{path:*}", s.handleDeleteObject)
+				r.Get("/buckets/{bucket}/objects", s.handleListObjects)
+			})
+
+			// Webhooks
+			r.Route("/webhooks", func(r chi.Router) {
+				r.Post("/", s.handleCreateWebhook)
+				r.Get("/", s.handleListWebhooks)
+				r.Get("/{id}", s.handleGetWebhook)
+				r.Put("/{id}", s.handleUpdateWebhook)
+				r.Delete("/{id}", s.handleDeleteWebhook)
+			})
+
+			// Functions — WASM runtime (in-process, sandboxed transforms).
+			// Complements the Deno/Node sidecar at /functions/v1/* with a
+			// fast, network-isolated path for pure transforms (e.g. slugify).
+			r.Route("/functions/wasm", func(r chi.Router) {
+				r.Get("/", s.handleWasmList)
+				r.Post("/{plugin}/{fn}", s.handleWasmTransform)
+			})
+
 			// Dashboard stats
 			s.registerDashboardRoutes(r)
 		})
 	})
+
+	// Realtime WebSocket
+	if s.realtime != nil {
+		s.router.Get("/ws", s.realtime.HandleWebSocket)
+	}
+
+	// Functions proxy
+	if s.functionsProxy != nil {
+		s.router.Handle("/functions/v1/*", http.HandlerFunc(s.functionsProxy.Handler))
+	}
+
+	// GraphQL endpoint
+	if s.graphql != nil && s.graphql.HasPool() {
+		s.router.Post("/api/graphql", s.graphql.HandleGraphQL)
+	}
+
+	// Storage signed URL direct download (public)
+	if s.storage != nil {
+		s.router.Get("/storage/{bucket}/{path:*}", s.handleStoragePublicDownload)
+	}
 
 	// Admin UI — serve React SPA from web/admin/dist/
 	// Resolves path relative to binary location or working directory.
@@ -229,6 +314,16 @@ func findAdminDist() string {
 	return ""
 }
 
+// SetRealtimeManager wires the realtime manager.
+func (s *Server) SetRealtimeManager(m *realtime.Manager) {
+	s.realtime = m
+}
+
+// SetWebhookManager wires the webhook manager.
+func (s *Server) SetWebhookManager(m *webhooks.Manager) {
+	s.webhookManager = m
+}
+
 // Router returns the chi router for testing
 func (s *Server) Router() *chi.Mux {
 	return s.router
@@ -255,11 +350,27 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Build raw claims map for RLS
+		rawClaims := map[string]interface{}{
+			"sub":       claims.UserID,
+			"tenant_id": claims.TenantID,
+			"email":     claims.Email,
+			"role":      claims.Role,
+		}
+		if claims.AppMetadata != nil {
+			rawClaims["app_metadata"] = claims.AppMetadata
+		}
+		if claims.UserMetadata != nil {
+			rawClaims["user_metadata"] = claims.UserMetadata
+		}
+
 		// Add auth context to request
 		authCtx := &auth.Context{
-			UserID:   claims.UserID,
-			TenantID: claims.TenantID,
-			Email:    claims.Email,
+			UserID:    claims.UserID,
+			TenantID:  claims.TenantID,
+			Email:     claims.Email,
+			Role:      claims.Role,
+			RawClaims: rawClaims,
 		}
 		ctx := auth.WithContext(r.Context(), authCtx)
 

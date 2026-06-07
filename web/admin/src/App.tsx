@@ -12,13 +12,15 @@ import { ActivityPage } from '@/pages/Activity'
 import { PluginsPage } from '@/pages/Plugins'
 import { WebhooksPage } from '@/pages/Webhooks'
 import { SettingsPage } from '@/pages/Settings'
-// @ts-expect-error CSS import for Vite
-import './index.css'
+import { StoragePage } from '@/pages/Storage'
+import { GraphQLPage } from '@/pages/GraphQL'
+import { FunctionsPage } from '@/pages/Functions'
+import { GatewayTablesPage } from '@/pages/GatewayTables'
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
     },
   },
@@ -71,6 +73,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/tables"
+        element={
+          <ProtectedRoute>
+            <GatewayTablesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/users"
         element={
           <ProtectedRoute>
@@ -99,6 +109,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <WebhooksPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/storage"
+        element={
+          <ProtectedRoute>
+            <StoragePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/graphql"
+        element={
+          <ProtectedRoute>
+            <GraphQLPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/functions"
+        element={
+          <ProtectedRoute>
+            <FunctionsPage />
           </ProtectedRoute>
         }
       />

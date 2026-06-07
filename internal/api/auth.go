@@ -79,8 +79,18 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Default role
+	role := "authenticated"
+	var userMeta map[string]interface{}
+	if len(user.Metadata) > 0 {
+		_ = json.Unmarshal(user.Metadata, &userMeta)
+		if r, ok := userMeta["role"].(string); ok && r != "" {
+			role = r
+		}
+	}
+
 	// Generate tokens
-	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
+	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey, role, nil, userMeta)
 	if err != nil {
 		s.sendError(w, http.StatusInternalServerError, "failed to generate tokens")
 		return
@@ -129,8 +139,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Default role
+	role := "authenticated"
+	var userMeta map[string]interface{}
+	if len(user.Metadata) > 0 {
+		_ = json.Unmarshal(user.Metadata, &userMeta)
+		if r, ok := userMeta["role"].(string); ok && r != "" {
+			role = r
+		}
+	}
+
 	// Generate tokens
-	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
+	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey, role, nil, userMeta)
 	if err != nil {
 		s.sendError(w, http.StatusInternalServerError, "failed to generate tokens")
 		return
@@ -181,8 +201,31 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Issue fresh token using same tokenKey (rotation only on logout)
-	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
+	// Default role
+	role := "authenticated"
+	var userMeta map[string]interface{}
+	if len(user.Metadata) > 0 {
+		_ = json.Unmarshal(user.Metadata, &userMeta)
+		if r, ok := userMeta["role"].(string); ok && r != "" {
+			role = r
+		}
+	}
+
+	// Rotate the tokenKey on refresh: the new token gets a fresh key and the
+	// previously-issued token is invalidated (its key no longer matches the user's).
+	newTokenKey, err := s.auth.GenerateTokenKey()
+	if err != nil {
+		s.sendError(w, http.StatusInternalServerError, "failed to rotate token key")
+		return
+	}
+	user.TokenKey = newTokenKey
+	if err := s.backend.UpdateUserTokenKey(ctx, tenantID, user.ID, newTokenKey); err != nil {
+		s.sendError(w, http.StatusInternalServerError, "failed to persist token key")
+		return
+	}
+
+	// Issue fresh token with the rotated key.
+	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey, role, nil, userMeta)
 	if err != nil {
 		s.sendError(w, http.StatusInternalServerError, "failed to generate tokens")
 		return

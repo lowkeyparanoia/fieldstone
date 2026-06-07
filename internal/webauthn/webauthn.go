@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package webauthn provides WebAuthn/Passkey authentication for Fieldstone.
 // This implements modern passwordless authentication using FIDO2 standards.
 //

@@ -28,7 +28,6 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('fieldstone_token')
       window.location.href = '/login'
     }
@@ -108,6 +107,37 @@ export interface HealthStatus {
   }
 }
 
+export interface StorageBucket {
+  name: string
+  public: boolean
+  createdAt: string
+}
+
+export interface StorageObject {
+  name: string
+  bucket: string
+  size: number
+  contentType: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Webhook {
+  id: string
+  url: string
+  secret: string
+  events: string[]
+  active: boolean
+  retries: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GraphQLResponse {
+  data?: unknown
+  errors?: Array<{ message: string }>
+}
+
 // Auth API
 export const authApi = {
   login: (email: string, password: string): Promise<AxiosResponse<{ token: string; user: User }>> =>
@@ -121,9 +151,21 @@ export const authApi = {
   
   logout: (): Promise<AxiosResponse<void>> =>
     apiClient.post('/auth/logout'),
+  
+  sendOTP: (phone: string): Promise<AxiosResponse<{ message: string }>> =>
+    apiClient.post('/auth/otp/send', { phone }),
+  
+  verifyOTP: (phone: string, token: string): Promise<AxiosResponse<{ token: string; user: User }>> =>
+    apiClient.post('/auth/otp/verify', { phone, token }),
+  
+  magicLink: (email: string): Promise<AxiosResponse<{ message: string }>> =>
+    apiClient.post('/auth/magiclink', { email }),
+  
+  resetPassword: (email: string): Promise<AxiosResponse<{ message: string }>> =>
+    apiClient.post('/auth/recover', { email }),
 }
 
-// Collections API
+// Collections API (legacy)
 export const collectionsApi = {
   list: (): Promise<AxiosResponse<{ items: Collection[] }>> =>
     apiClient.get('/collections'),
@@ -141,7 +183,7 @@ export const collectionsApi = {
     apiClient.delete(`/collections/${id}`),
 }
 
-// Records API
+// Records API (legacy)
 export const recordsApi = {
   list: (collectionId: string, params?: { page?: number; limit?: number; filter?: string; sort?: string }): Promise<AxiosResponse<{ items: CollectionRecord[]; total: number }>> =>
     apiClient.get(`/collections/${collectionId}/records`, { params }),
@@ -157,6 +199,24 @@ export const recordsApi = {
   
   delete: (collectionId: string, recordId: string): Promise<AxiosResponse<void>> =>
     apiClient.delete(`/collections/${collectionId}/records/${recordId}`),
+}
+
+// Gateway API (new PostgREST-like API)
+export const gatewayApi = {
+  query: (table: string, params?: Record<string, string>): Promise<AxiosResponse<{ data: unknown[] }>> =>
+    apiClient.get(`/v1/${table}`, { params }),
+  
+  getById: (table: string, id: string, params?: Record<string, string>): Promise<AxiosResponse<{ data: unknown }>> =>
+    apiClient.get(`/v1/${table}/${id}`, { params }),
+  
+  insert: (table: string, data: Record<string, unknown>): Promise<AxiosResponse<{ data: unknown }>> =>
+    apiClient.post(`/v1/${table}`, data),
+  
+  update: (table: string, id: string, data: Record<string, unknown>): Promise<AxiosResponse<{ data: unknown }>> =>
+    apiClient.patch(`/v1/${table}`, { ...data, id }),
+  
+  delete: (table: string, id: string): Promise<AxiosResponse<{ success: boolean }>> =>
+    apiClient.delete(`/v1/${table}`, { params: { id } }),
 }
 
 // Users API
@@ -192,6 +252,62 @@ export const tenantsApi = {
     apiClient.delete(`/tenants/${id}`),
 }
 
+// Storage API
+export const storageApi = {
+  listBuckets: (): Promise<AxiosResponse<{ buckets: StorageBucket[] }>> =>
+    apiClient.get('/storage/buckets'),
+  
+  createBucket: (name: string, isPublic: boolean = false): Promise<AxiosResponse<{ name: string }>> =>
+    apiClient.post('/storage/buckets', { name, public: isPublic }),
+  
+  deleteBucket: (name: string): Promise<AxiosResponse<{ success: boolean }>> =>
+    apiClient.delete(`/storage/buckets/${name}`),
+  
+  listObjects: (bucket: string, prefix?: string): Promise<AxiosResponse<{ objects: StorageObject[] }>> =>
+    apiClient.get(`/storage/buckets/${bucket}/objects`, { params: { prefix } }),
+  
+  upload: (bucket: string, path: string, file: File): Promise<AxiosResponse<StorageObject>> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiClient.post(`/storage/buckets/${bucket}/objects?path=${encodeURIComponent(path)}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  
+  deleteObject: (bucket: string, path: string): Promise<AxiosResponse<{ success: boolean }>> =>
+    apiClient.delete(`/storage/buckets/${bucket}/objects/${path}`),
+}
+
+// Webhooks API
+export const webhooksApi = {
+  list: (): Promise<AxiosResponse<{ items: Webhook[] }>> =>
+    apiClient.get('/webhooks'),
+  
+  get: (id: string): Promise<AxiosResponse<Webhook>> =>
+    apiClient.get(`/webhooks/${id}`),
+  
+  create: (data: Partial<Webhook>): Promise<AxiosResponse<Webhook>> =>
+    apiClient.post('/webhooks', data),
+  
+  update: (id: string, data: Partial<Webhook>): Promise<AxiosResponse<Webhook>> =>
+    apiClient.put(`/webhooks/${id}`, data),
+  
+  delete: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete(`/webhooks/${id}`),
+}
+
+// GraphQL API
+export const graphqlApi = {
+  query: (query: string, variables?: Record<string, unknown>): Promise<AxiosResponse<GraphQLResponse>> =>
+    apiClient.post('/graphql', { query, variables }),
+}
+
+// Functions API
+export const functionsApi = {
+  invoke: (name: string, body?: Record<string, unknown>): Promise<AxiosResponse<unknown>> =>
+    apiClient.post(`/functions/v1/${name}`, body),
+}
+
 // Dashboard API
 export const dashboardApi = {
   getStats: (): Promise<AxiosResponse<DashboardStats>> =>
@@ -202,6 +318,12 @@ export const dashboardApi = {
   
   getHealth: (): Promise<AxiosResponse<HealthStatus>> =>
     apiClient.get('/health'),
+}
+
+// Vector Search API
+export const vectorApi = {
+  search: (table: string, query: string, limit: number = 10): Promise<AxiosResponse<{ data: unknown[] }>> =>
+    apiClient.post('/v1/semantic_search', { table, query, limit }),
 }
 
 export default apiClient

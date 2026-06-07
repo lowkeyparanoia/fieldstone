@@ -28,8 +28,10 @@ func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 	authSvc := auth.NewService("test-secret-32-chars-minimum-key!!", 1*time.Hour, "test")
 	store := jobs.NewMemoryStore()
 	q := jobs.NewQueue(store, 2)
-	// nil cache = no middleware caching = tests always see live backend state
-	srv := NewServer(b, authSvc, q, nil)
+	// nil cache = no middleware caching = tests always see live backend state.
+	// Postgres pool / storage / functions proxy are nil: the gateway, RLS and
+	// edge-function routes degrade gracefully when their backends are absent.
+	srv := NewServer(b, authSvc, q, nil, nil, nil, nil)
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(func() {
 		ts.Close()

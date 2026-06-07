@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Database,
+  Table2,
   Users,
   Settings,
   Webhook,
@@ -12,6 +13,9 @@ import {
   Box,
   Sun,
   Moon,
+  HardDrive,
+  GitGraph,
+  FunctionSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -25,8 +29,12 @@ interface SidebarProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Collections', href: '/collections', icon: Database },
+  { name: 'Tables (Gateway)', href: '/tables', icon: Table2 },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Activity', href: '/activity', icon: Activity },
+  { name: 'Storage', href: '/storage', icon: HardDrive },
+  { name: 'GraphQL', href: '/graphql', icon: GitGraph },
+  { name: 'Edge Functions', href: '/functions', icon: FunctionSquare },
   { name: 'Plugins', href: '/plugins', icon: Puzzle },
   { name: 'Webhooks', href: '/webhooks', icon: Webhook },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -84,7 +92,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Footer: account + theme + collapse */}
+      {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 flex flex-col gap-1 border-t p-2">
         <div
           className={cn(

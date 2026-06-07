@@ -283,7 +283,7 @@ func (s *Server) ListCollections(ctx context.Context, req *proto.ListCollections
 
 	return &proto.ListCollectionsResponse{
 		Items:      items,
-		TotalItems: len(items),
+		TotalItems: int32(len(items)),
 		Page:       int32(opts.Page),
 		PerPage:    int32(opts.PerPage),
 		TotalPages: 1,
@@ -427,7 +427,7 @@ func (s *Server) Login(ctx context.Context, req *proto.LoginRequest) (*proto.Aut
 	}
 
 	// Generate tokens
-	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
+	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey, "authenticated", nil, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate tokens: %v", err)
 	}
@@ -495,7 +495,7 @@ func (s *Server) UploadFile(stream proto.FieldstoneService_UploadFileServer) err
 		case *proto.UploadFileRequest_Metadata:
 			metadata = data.Metadata
 		case *proto.UploadFileRequest_Chunk:
-			fileData = append(fileData, data.Chunk)
+			fileData = append(fileData, data.Chunk...)
 		}
 	}
 

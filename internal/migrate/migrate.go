@@ -3,7 +3,6 @@
 package migrate
 
 import (
-	"context"
 	"database/sql"
 	"embed"
 	"fmt"

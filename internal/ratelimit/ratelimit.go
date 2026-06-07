@@ -239,20 +239,20 @@ func (sw *SlidingWindow) ResetAfter(key string) time.Duration {
 // FixedWindow implements the fixed window algorithm
 type FixedWindow struct {
 	mu      sync.RWMutex
-	windows map[string]*window
+	windows map[string]*rateWindow
 	rate    int
 	window  time.Duration
 }
 
-type window struct {
-	count  int
-	start  time.Time
+type rateWindow struct {
+	count int
+	start time.Time
 }
 
 // NewFixedWindow creates a fixed window rate limiter
 func NewFixedWindow(rate int, window time.Duration) *FixedWindow {
 	return &FixedWindow{
-		windows: make(map[string]*window),
+		windows: make(map[string]*rateWindow),
 		rate:    rate,
 		window:  window,
 	}
@@ -269,7 +269,7 @@ func (fw *FixedWindow) Allow(key string) bool {
 	w, exists := fw.windows[key]
 	if !exists || w.start != currentWindow {
 		// New window
-		fw.windows[key] = &window{
+		fw.windows[key] = &rateWindow{
 			count: 1,
 			start: currentWindow,
 		}
