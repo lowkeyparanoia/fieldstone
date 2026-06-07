@@ -204,11 +204,13 @@ func sanitizeTable(name string) string {
 }
 
 func sanitizeCol(name string) string {
-	name = strings.ReplaceAll(name, "\x00", "")
-	name = strings.ReplaceAll(name, "\"", "")
-	name = strings.ReplaceAll(name, "'", "")
-	name = strings.ReplaceAll(name, ";", "")
-	name = strings.ReplaceAll(name, "(", "")
-	name = strings.ReplaceAll(name, ")", "")
-	return name
+	name = strings.TrimSpace(strings.ReplaceAll(name, "\x00", ""))
+	if name == "" || name == "*" {
+		return "*"
+	}
+	// Quote as a Postgres identifier. pgx.Identifier escapes embedded quotes and
+	// wraps in double-quotes, so an attacker-controlled column name (e.g.
+	// "id OR 1=1") becomes a single quoted identifier that simply doesn't exist —
+	// it cannot break out into SQL. This is the column-injection guard.
+	return pgx.Identifier{name}.Sanitize()
 }

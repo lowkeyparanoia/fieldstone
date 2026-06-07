@@ -40,8 +40,11 @@ func (g *Gateway) RegisterRoutes(r chi.Router) {
 	})
 }
 
-// setRLSContext sets JWT claims and tenant on a dedicated connection.
-func (g *Gateway) setRLSContext(ctx context.Context, conn *pgxpool.Conn, r *http.Request) error {
+// setRLSContext applies the request's JWT claims + tenant to the transaction via
+// SET LOCAL. IMPORTANT: SET LOCAL only takes effect inside a transaction, so this
+// must run on a pgx.Tx (see beginRLS) — otherwise Postgres discards it and RLS
+// policies see no claims.
+func (g *Gateway) setRLSContext(ctx context.Context, tx pgx.Tx, r *http.Request) error {
 	authCtx, ok := auth.FromContext(r.Context())
 	if ok {
 		claims := map[string]interface{}{
@@ -58,30 +61,47 @@ func (g *Gateway) setRLSContext(ctx context.Context, conn *pgxpool.Conn, r *http
 			}
 		}
 		claimsJSON, _ := json.Marshal(claims)
-		if _, err := conn.Exec(ctx, "SET LOCAL request.jwt.claims = $1", claimsJSON); err != nil {
+		if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(claimsJSON)); err != nil {
 			return fmt.Errorf("failed to set jwt claims: %w", err)
 		}
-		if _, err := conn.Exec(ctx, "SET LOCAL app.current_tenant = $1", authCtx.TenantID); err != nil {
+		if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", authCtx.TenantID); err != nil {
 			return fmt.Errorf("failed to set tenant: %w", err)
 		}
 	}
 	return nil
 }
 
+// beginRLS acquires a pooled connection and opens a transaction with the request's
+// RLS context applied. The caller MUST: defer conn.Release(); defer tx.Rollback(ctx);
+// and tx.Commit(ctx) on the success path of any write. (SET LOCAL / set_config(…,true)
+// require a transaction to take effect.)
+func (g *Gateway) beginRLS(ctx context.Context, r *http.Request) (*pgxpool.Conn, pgx.Tx, error) {
+	conn, err := g.pool.Acquire(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		conn.Release()
+		return nil, nil, err
+	}
+	if err := g.setRLSContext(ctx, tx, r); err != nil {
+		log.Error().Err(err).Msg("RLS setup failed")
+	}
+	return conn, tx, nil
+}
+
 func (g *Gateway) handleQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	table := chi.URLParam(r, "table")
 
-	conn, err := g.pool.Acquire(ctx)
+	conn, tx, err := g.beginRLS(ctx, r)
 	if err != nil {
 		http.Error(w, `{"error":"database unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
 	defer conn.Release()
-
-	if err := g.setRLSContext(ctx, conn, r); err != nil {
-		log.Error().Err(err).Msg("RLS setup failed")
-	}
+	defer tx.Rollback(ctx)
 
 	qb := NewQueryBuilder(table)
 	qb.Select(r.URL.Query().Get("select"))
@@ -91,7 +111,7 @@ func (g *Gateway) handleQuery(w http.ResponseWriter, r *http.Request) {
 	qb.Offset(r.URL.Query().Get("offset"))
 
 	sql, args := qb.BuildSelect()
-	rows, err := conn.Query(ctx, sql, args...)
+	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Query failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
@@ -117,16 +137,13 @@ func (g *Gateway) handleGetByID(w http.ResponseWriter, r *http.Request) {
 	table := chi.URLParam(r, "table")
 	id := chi.URLParam(r, "id")
 
-	conn, err := g.pool.Acquire(ctx)
+	conn, tx, err := g.beginRLS(ctx, r)
 	if err != nil {
 		http.Error(w, `{"error":"database unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
 	defer conn.Release()
-
-	if err := g.setRLSContext(ctx, conn, r); err != nil {
-		log.Error().Err(err).Msg("RLS setup failed")
-	}
+	defer tx.Rollback(ctx)
 
 	qb := NewQueryBuilder(table)
 	qb.Select(r.URL.Query().Get("select"))
@@ -134,7 +151,7 @@ func (g *Gateway) handleGetByID(w http.ResponseWriter, r *http.Request) {
 	qb.Where("id", "=", id)
 
 	sql, args := qb.BuildSelect()
-	rows, err := conn.Query(ctx, sql, args...)
+	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Query failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
@@ -168,20 +185,17 @@ func (g *Gateway) handleInsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := g.pool.Acquire(ctx)
+	conn, tx, err := g.beginRLS(ctx, r)
 	if err != nil {
 		http.Error(w, `{"error":"database unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
 	defer conn.Release()
-
-	if err := g.setRLSContext(ctx, conn, r); err != nil {
-		log.Error().Err(err).Msg("RLS setup failed")
-	}
+	defer tx.Rollback(ctx)
 
 	qb := NewQueryBuilder(table)
 	sql, args := qb.BuildInsert(body)
-	rows, err := conn.Query(ctx, sql, args...)
+	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Insert failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
@@ -193,6 +207,11 @@ func (g *Gateway) handleInsert(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Insert collect failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -223,20 +242,17 @@ func (g *Gateway) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	conn, err := g.pool.Acquire(ctx)
+	conn, tx, err := g.beginRLS(ctx, r)
 	if err != nil {
 		http.Error(w, `{"error":"database unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
 	defer conn.Release()
-
-	if err := g.setRLSContext(ctx, conn, r); err != nil {
-		log.Error().Err(err).Msg("RLS setup failed")
-	}
+	defer tx.Rollback(ctx)
 
 	qb := NewQueryBuilder(table)
 	sql, args := qb.BuildUpdate(id, body)
-	rows, err := conn.Query(ctx, sql, args...)
+	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Update failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
@@ -255,6 +271,11 @@ func (g *Gateway) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": returning,
@@ -270,20 +291,17 @@ func (g *Gateway) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := g.pool.Acquire(ctx)
+	conn, tx, err := g.beginRLS(ctx, r)
 	if err != nil {
 		http.Error(w, `{"error":"database unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
 	defer conn.Release()
-
-	if err := g.setRLSContext(ctx, conn, r); err != nil {
-		log.Error().Err(err).Msg("RLS setup failed")
-	}
+	defer tx.Rollback(ctx)
 
 	qb := NewQueryBuilder(table)
 	sql, args := qb.BuildDelete(id)
-	tag, err := conn.Exec(ctx, sql, args...)
+	tag, err := tx.Exec(ctx, sql, args...)
 	if err != nil {
 		log.Error().Err(err).Str("sql", sql).Msg("Delete failed")
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
@@ -291,6 +309,11 @@ func (g *Gateway) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if tag.RowsAffected() == 0 {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
