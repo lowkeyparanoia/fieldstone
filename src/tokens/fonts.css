@@ -1,0 +1,7 @@
+/* ChampIQ webfonts — all standard Google Fonts (the families the product ships).
+   - Geist         : display / UI headings & buttons (brand display face)
+   - Space Grotesk : display fallback
+   - Inter         : body copy
+   - JetBrains Mono: code, metadata, labels
+   - Press Start 2P: pixel accent (Pixie voice, tiny labels) */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap');

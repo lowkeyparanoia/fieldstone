@@ -1,0 +1,34 @@
+/* ─── ChampIQ Spacing, Radius, Elevation & Density ─────────────────────────── */
+:root {
+  /* ── Density-driven spacing — overridden by [data-density] below ───────── */
+  --row-h: 44px;   /* default control / row height */
+  --pad-1: 14px;
+  --pad-2: 18px;
+  --pad-3: 24px;
+
+  /* ── Radius scale ──────────────────────────────────────────────────────── */
+  --radius-xs: 4px;   /* tags, tiny chips, inputs inside nodes */
+  --radius-sm: 6px;   /* small buttons, menu rows */
+  --radius-md: 8px;   /* buttons, inputs, glyph tiles */
+  --radius-lg: 10px;  /* cards, panels */
+  --radius-xl: 12px;  /* canvas node cards, hub cards */
+  --radius-2xl: 16px; /* hero / briefing surfaces */
+  --radius-pill: 999px;
+
+  /* ── Elevation — dark UI leans on outer shadow + a subtle inset top edge ── */
+  --shadow-sm: 0 4px 20px rgba(0,0,0,.35);
+  --shadow-md: 0 8px 30px rgba(0,0,0,.45);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+
+  /* ── Accent / mint glows — the signature ChampIQ light bloom ───────────── */
+  --glow-accent: 0 0 24px -4px rgba(var(--accent-2-rgb), .55);
+  --glow-mint:   0 0 24px -4px rgba(var(--mint-2-rgb), .45);
+
+  /* ── Canvas grid ───────────────────────────────────────────────────────── */
+  --grid-gap: 24px;
+}
+
+/* ── Density presets — set [data-density] on a root element ──────────────── */
+[data-density="compact"]     { --row-h: 28px; --pad-1: 6px;  --pad-2: 10px; --pad-3: 14px; }
+[data-density="cozy"]        { --row-h: 36px; --pad-1: 10px; --pad-2: 14px; --pad-3: 20px; }
+[data-density="comfortable"] { --row-h: 44px; --pad-1: 14px; --pad-2: 18px; --pad-3: 24px; }

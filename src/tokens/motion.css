@@ -1,0 +1,37 @@
+/* ─── ChampIQ Motion Tokens ─────────────────────────────────────────────────
+   Calm and technical: short, eased transitions; a single spring for "pop".
+   No gamified bounces on app chrome — springs are reserved for cards & menus.
+   Pixie has her own ambient idle loops (breathe / float / antenna-spark).
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Easings */
+  --ease-swift:  cubic-bezier(0.4, 0, 0.2, 1);    /* @kind other */ /* default UI transitions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* @kind other */ /* card / menu entrance pop */
+  --ease-linger: cubic-bezier(0.16, 1, 0.3, 1);   /* @kind other */ /* slide-in panels, sheets */
+
+  /* Durations */
+  --dur-fast:   140ms; /* @kind other */
+  --dur-base:   180ms; /* @kind other */
+  --dur-slow:   220ms; /* @kind other */
+  --dur-slower: 420ms; /* @kind other */
+}
+
+/* ─── Shared keyframes used across the product ────────────────────────────── */
+@keyframes hub-card-in    { 0% { opacity:0; transform:translateY(8px); } 100% { opacity:1; transform:translateY(0); } }
+@keyframes bubble-in      { 0% { opacity:0; transform:scale(.6) translateY(6px); } 100% { opacity:1; transform:scale(1) translateY(0); } }
+@keyframes slide-in-right { 0% { transform:translateX(100%); opacity:0; } 100% { transform:translateX(0); opacity:1; } }
+@keyframes fade-in        { 0% { opacity:0; } 100% { opacity:1; } }
+@keyframes spin           { to { transform:rotate(360deg); } }
+@keyframes skeleton-pulse { 0%,100% { opacity:.45; } 50% { opacity:.9; } }
+@keyframes glow-pulse     { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+@keyframes node-pulse     { 0%,100% { box-shadow:0 0 0 0 rgba(255,210,63,.55); } 50% { box-shadow:0 0 0 8px rgba(255,210,63,0); } }
+@keyframes dash-flow      { to { stroke-dashoffset:-16; } }
+
+/* Pixie ambient loops */
+@keyframes pixie-float    { 0%,100% { transform:translateY(0); }    50% { transform:translateY(-4px); } }
+@keyframes pixie-breathe  { 0%,100% { transform:scale(1); }         50% { transform:scale(1.015); } }
+@keyframes antenna-spark  { 0%,100% { opacity:.35; transform:scale(1); } 50% { opacity:1; transform:scale(1.15); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

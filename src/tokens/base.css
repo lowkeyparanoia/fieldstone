@@ -1,0 +1,54 @@
+/* ─── ChampIQ base resets & utility classes ───────────────────────────────── */
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbars — thin, dark, unobtrusive ────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-4); }
+.scroll::-webkit-scrollbar       { width: 6px; height: 6px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+.scroll::-webkit-scrollbar-thumb:hover { background: var(--bg-4); }
+
+/* ── Focus ring — accent, always 2px offset ──────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Card — the canonical surface ────────────────────────────────────────── */
+.champiq-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+}
+
+/* ── Glow utilities — the signature ChampIQ bloom ────────────────────────── */
+.glow-accent { box-shadow: var(--glow-accent); }
+.glow-mint   { box-shadow: var(--glow-mint); }
+
+/* ── Canvas dot grid — violet dots on bg-0, the hero surface texture ─────── */
+.bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(124,92,255,.08) 1px, transparent 0);
+  background-size: var(--grid-gap) var(--grid-gap);
+}
+
+/* ── Pixie sprite — pixel-art, never anti-aliased ────────────────────────── */
+.pixie-sprite { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ── Animation helpers ───────────────────────────────────────────────────── */
+.ciq-spin     { animation: spin 1s linear infinite; }
+.ciq-slide-in { animation: slide-in-right var(--dur-slow) var(--ease-linger) both; }
+.ciq-fade-in  { animation: fade-in var(--dur-base) ease both; }

@@ -1,0 +1,63 @@
+/* ─── ChampIQ Color Tokens ──────────────────────────────────────────────────
+   Dark-first. Every surface, text and line references a token — never a hex.
+   The accent ramp is THEME-SWAPPABLE: bind to --accent-1/2/3, never the hex.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ── Surfaces — deep navy, lowest to highest elevation ─────────────────── */
+  --bg-0: #070912;   /* app background / canvas */
+  --bg-1: #0E1320;   /* cards, panels, rails */
+  --bg-2: #151B2C;   /* inputs, secondary buttons, raised rows */
+  --bg-3: #1D2438;   /* hover, active rows, scrollbar */
+  --bg-4: #2A3350;   /* highest — chips, scrollbar hover */
+
+  /* ── Text — high to low emphasis ───────────────────────────────────────── */
+  --text-1: #F5F7FF; /* primary / headings */
+  --text-2: #B6BFD8; /* body */
+  --text-3: #7B86A6; /* muted / metadata */
+  --text-4: #525C7A; /* faint / disabled / eyebrow */
+
+  /* ── Brand accent — VIOLET (default theme). Bind to these, not the hex. ── */
+  --accent-1: #A589FF;        /* light — active glyphs, links on dark */
+  --accent-2: #7C5CFF;        /* primary — the ChampIQ violet */
+  --accent-3: #5634E0;        /* deep — gradient bottom, borders */
+  --accent-2-rgb: 124,92,255; /* @kind other */ /* for rgba() glows */
+
+  /* ── AI / Pixie — mint secondary ───────────────────────────────────────── */
+  --mint-1: #6FFFE2;
+  --mint-2: #00E5C7;
+  --mint-2-rgb: 0,229,199; /* @kind other */
+
+  /* ── Status ────────────────────────────────────────────────────────────── */
+  --success: #4ADE80;
+  --warn:    #FFD23F;
+  --danger:  #FF4D6D;
+  --info:    #5BC0FF;
+
+  /* ── Lines ─────────────────────────────────────────────────────────────── */
+  --border-1: #232C45; /* default hairline */
+  --border-2: #2C375A; /* stronger — node cards, dividers */
+
+  /* ── Legacy / semantic aliases (existing components reference these) ────── */
+  --bg-base:    var(--bg-0);
+  --bg-surface: var(--bg-1);
+  --bg-sidebar: var(--bg-2);
+  --border:     var(--border-1);
+}
+
+/* ─── Accent themes — set [data-accent] on a root element ──────────────────
+   The app ships five swappable accents. Components stay on --accent-* so a
+   single attribute reskins the entire UI. ─────────────────────────────────── */
+[data-accent="violet"] { --accent-1:#A589FF; --accent-2:#7C5CFF; --accent-3:#5634E0; --accent-2-rgb:124,92,255; /* @kind other */ }
+[data-accent="mint"]   { --accent-1:#6FFFE2; --accent-2:#00E5C7; --accent-3:#00A38E; --accent-2-rgb:0,229,199; /* @kind other */ }
+[data-accent="coral"]  { --accent-1:#FFB199; --accent-2:#FF7A59; --accent-3:#C84B2D; --accent-2-rgb:255,122,89; /* @kind other */ }
+[data-accent="sun"]    { --accent-1:#FFE08A; --accent-2:#FFC23F; --accent-3:#C8881C; --accent-2-rgb:255,194,63; /* @kind other */ }
+[data-accent="sky"]    { --accent-1:#8FD8FF; --accent-2:#5BC0FF; --accent-3:#2A82C2; --accent-2-rgb:91,192,255; /* @kind other */ }
+
+/* ─── Light theme — optional, set [data-theme="light"] ─────────────────────
+   Dark is the default and the brand's home. Light exists for parity only. */
+[data-theme="light"] {
+  --bg-0:#F5F7FF; --bg-1:#FFFFFF; --bg-2:#EFF1FA; --bg-3:#E4E8F5; --bg-4:#D6DCEF;
+  --text-1:#0E1320; --text-2:#2A3350; --text-3:#525C7A; --text-4:#7B86A6;
+  --border-1:#DDE2F0; --border-2:#C8D0E8;
+  --bg-base:var(--bg-0); --bg-surface:var(--bg-1); --bg-sidebar:var(--bg-2); --border:var(--border-1);
+}
