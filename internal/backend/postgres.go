@@ -143,25 +143,6 @@ func (b *PostgresBackend) Close() error {
 	return nil
 }
 
-// Helper to set tenant context for RLS
-func (b *PostgresBackend) withTenant(ctx context.Context, tenantID string) (context.Context, error) {
-	if tenantID == "" {
-		tenantID = "00000000-0000-0000-0000-000000000000"
-	}
-	conn, err := b.pool.Acquire(ctx)
-	if err != nil {
-		return ctx, err
-	}
-	defer conn.Release()
-
-	_, err = conn.Exec(ctx, "SET LOCAL app.current_tenant = $1", tenantID)
-	if err != nil {
-		return ctx, err
-	}
-
-	return ctx, nil
-}
-
 func (b *PostgresBackend) CreateCollection(ctx context.Context, tenantID string, collection *models.Collection) error {
 	fieldsJSON, err := json.Marshal(collection.Fields)
 	if err != nil {
@@ -281,18 +262,23 @@ func (b *PostgresBackend) DeleteCollection(ctx context.Context, tenantID string,
 	return err
 }
 
+// GetCollection reads inside a tenant-scoped transaction so the RLS policy on
+// _collections is active. The explicit tenant_id predicate is kept as defence
+// in depth: RLS is the guarantee, the predicate is the intent.
 func (b *PostgresBackend) GetCollection(ctx context.Context, tenantID string, collectionID string) (*models.Collection, error) {
 	var c models.Collection
 	var fieldsJSON []byte
 
-	err := b.pool.QueryRow(ctx, `
-		SELECT id, name, fields, system, list_rule, view_rule, create_rule, update_rule, delete_rule, created_at, updated_at
-		FROM _collections WHERE id = $1 AND tenant_id = $2
-	`, collectionID, tenantID).Scan(
-		&c.ID, &c.Name, &fieldsJSON, &c.System,
-		&c.ListRule, &c.ViewRule, &c.CreateRule, &c.UpdateRule, &c.DeleteRule,
-		&c.CreatedAt, &c.UpdatedAt,
-	)
+	err := b.withTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT id, name, fields, system, list_rule, view_rule, create_rule, update_rule, delete_rule, created_at, updated_at
+			FROM _collections WHERE id = $1 AND tenant_id = $2
+		`, collectionID, tenantID).Scan(
+			&c.ID, &c.Name, &fieldsJSON, &c.System,
+			&c.ListRule, &c.ViewRule, &c.CreateRule, &c.UpdateRule, &c.DeleteRule,
+			&c.CreatedAt, &c.UpdatedAt,
+		)
+	})
 
 	if err == pgx.ErrNoRows {
 		return nil, NewNotFoundError("collection", collectionID)
@@ -926,10 +912,6 @@ func (b *PostgresBackend) GetMigrationVersion(ctx context.Context) (int, error) 
 	var version int
 	err := b.pool.QueryRow(ctx, "SELECT COALESCE(MAX(version), 0) FROM _migrations").Scan(&version)
 	return version, err
-}
-
-func (b *PostgresBackend) BeginTx(ctx context.Context) (Tx, error) {
-	return nil, fmt.Errorf("transactions not yet implemented")
 }
 
 func (b *PostgresBackend) Subscribe(ctx context.Context, collectionID string, callback func(event Event)) (Subscription, error) {
