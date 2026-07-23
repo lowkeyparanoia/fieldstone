@@ -51,7 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { token, user } = response.data
       localStorage.setItem('fieldstone_token', token)
       setUser(user)
-      navigate('/')
+      // Deliberately no navigate() here. Navigating from the context races the
+      // setUser above: ProtectedRoute can render with user still null and bounce
+      // straight back to /login. Let the Login route react to isAuthenticated.
     } catch (error) {
       throw error
     }
@@ -63,7 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { token, user } = response.data
       localStorage.setItem('fieldstone_token', token)
       setUser(user)
-      navigate('/')
+      // Deliberately no navigate() here. Navigating from the context races the
+      // setUser above: ProtectedRoute can render with user still null and bounce
+      // straight back to /login. Let the Login route react to isAuthenticated.
     } catch (error) {
       throw error
     }

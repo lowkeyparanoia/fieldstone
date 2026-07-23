@@ -1,6 +1,10 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios'
 
-const API_BASE_URL = 'http://localhost:8090/api'
+// Relative by default, so the UI talks to whatever origin served it. A
+// hardcoded host and port breaks on any other port, breaks in production, and
+// makes same-origin requests cross-origin, which drags CORS in for no reason.
+// VITE_API_BASE_URL is there for running `vite dev` against a remote server.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({

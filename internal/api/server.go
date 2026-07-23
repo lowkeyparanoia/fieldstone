@@ -296,6 +296,17 @@ func (s *Server) sendError(w http.ResponseWriter, status int, message string) {
 	})
 }
 
+// DefaultTenantID is the id of the tenant seeded by the schema migration.
+//
+// The fallback here used to be the literal string "default", which is the
+// tenant's *slug*, not its id. SQLite's dynamic typing accepted it silently;
+// Postgres rejected every insert with
+//
+//	invalid input syntax for type uuid: "default" (SQLSTATE 22P02)
+//
+// so registration, and therefore the whole Postgres path, could never work.
+const DefaultTenantID = "00000000-0000-0000-0000-000000000000"
+
 func (s *Server) getTenantID(r *http.Request) string {
 	// Auth context (JWT) takes priority — set by authMiddleware after token validation
 	if authCtx, ok := auth.FromContext(r.Context()); ok {
@@ -305,7 +316,7 @@ func (s *Server) getTenantID(r *http.Request) string {
 	if tid := r.Header.Get("X-Tenant-ID"); tid != "" {
 		return tid
 	}
-	return "default"
+	return DefaultTenantID
 }
 
 func (s *Server) handleListCollections(w http.ResponseWriter, r *http.Request) {

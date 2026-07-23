@@ -89,3 +89,6 @@ coverage/
 # OS files
 Thumbs.db
 .DS_Store
+
+web/admin/node_modules/
+web/admin/dist/

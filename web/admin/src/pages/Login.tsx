@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Box, Loader2 } from 'lucide-react'
-import { authApi } from '@/lib/api'
+import { useAuth } from '@/context/auth'
 
 export function LoginPage() {
-  const navigate = useNavigate()
+  const { login, isAuthenticated } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
@@ -21,15 +21,21 @@ export function LoginPage() {
     setError('')
 
     try {
-      const response = await authApi.login(email, password)
-      localStorage.setItem('fieldstone_token', response.data.token)
-      navigate('/')
+      // Goes through the context so `user` is set and isAuthenticated flips.
+      // Calling authApi directly stored a token but left the context empty, so
+      // ProtectedRoute bounced straight back here.
+      await login(email, password)
     } catch (err) {
       setError('Invalid email or password')
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Declarative redirect: renders once auth state has actually committed, so
+  // there is no window where ProtectedRoute sees a null user.
+  if (isAuthenticated) return <Navigate to="/" replace />
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
