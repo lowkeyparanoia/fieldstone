@@ -5,7 +5,9 @@ package ratelimit
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,18 +25,18 @@ type Limiter interface {
 type Algorithm string
 
 const (
-	AlgorithmTokenBucket  Algorithm = "token_bucket"
+	AlgorithmTokenBucket   Algorithm = "token_bucket"
 	AlgorithmSlidingWindow Algorithm = "sliding_window"
 	AlgorithmFixedWindow   Algorithm = "fixed_window"
 )
 
 // Config holds rate limiter configuration
 type Config struct {
-	Algorithm  Algorithm     // Rate limiting algorithm
-	Rate       int           // Requests per period
-	Period     time.Duration // Time window
-	Burst      int           // Burst size (for token bucket)
-	KeyPrefix  string        // Redis key prefix (if using Redis)
+	Algorithm Algorithm     // Rate limiting algorithm
+	Rate      int           // Requests per period
+	Period    time.Duration // Time window
+	Burst     int           // Burst size (for token bucket)
+	KeyPrefix string        // Redis key prefix (if using Redis)
 }
 
 // New creates a new rate limiter based on configuration
@@ -61,7 +63,7 @@ type TokenBucket struct {
 }
 
 type bucket struct {
-	tokens    float64
+	tokens     float64
 	lastRefill time.Time
 }
 
@@ -133,10 +135,10 @@ func (tb *TokenBucket) ResetAfter(key string) time.Duration {
 
 // SlidingWindow implements the sliding window algorithm
 type SlidingWindow struct {
-	mu       sync.RWMutex
-	windows  map[string][]time.Time
-	rate     int
-	window   time.Duration
+	mu      sync.RWMutex
+	windows map[string][]time.Time
+	rate    int
+	window  time.Duration
 }
 
 // NewSlidingWindow creates a sliding window rate limiter
@@ -245,16 +247,24 @@ type FixedWindow struct {
 }
 
 type window struct {
-	count  int
-	start  time.Time
+	count int
+	start time.Time
 }
 
-// NewFixedWindow creates a fixed window rate limiter
-func NewFixedWindow(rate int, window time.Duration) *FixedWindow {
+// NewFixedWindow creates a fixed window rate limiter.
+//
+// The duration parameter was named `window`, which shadowed the `window` struct
+// type declared just above, so `make(map[string]*window)` resolved to the
+// parameter rather than the type:
+//
+//	window (parameter) is not a type
+//
+// and the whole package failed to compile.
+func NewFixedWindow(rate int, dur time.Duration) *FixedWindow {
 	return &FixedWindow{
 		windows: make(map[string]*window),
 		rate:    rate,
-		window:  window,
+		window:  dur,
 	}
 }
 
@@ -322,14 +332,14 @@ func Middleware(limiter Limiter, keyFunc func(r *http.Request) string) func(http
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyFunc(r)
-			
+
 			if !limiter.Allow(key) {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", int(limiter.ResetAfter(key).Seconds())))
 				w.WriteHeader(http.StatusTooManyRequests)
 				w.Write([]byte(`{"error":{"code":429,"message":"Rate limit exceeded"}}`))
-				
+
 				log.Warn().
 					Str("key", key).
 					Str("path", r.URL.Path).
@@ -346,17 +356,41 @@ func Middleware(limiter Limiter, keyFunc func(r *http.Request) string) func(http
 	}
 }
 
-// PerIPKeyFunc extracts IP as rate limit key
+// PerIPKeyFunc extracts the client IP as the rate limit key.
+//
+// Two bugs made this limit nothing at all:
+//
+//  1. r.RemoteAddr is "host:port", and the ephemeral port differs on every
+//     connection. Keying on it made the limiter per-connection rather than
+//     per-IP, so every request got a brand new bucket and no client was ever
+//     limited. The port must be stripped.
+//
+//  2. X-Forwarded-For is a comma separated list, "client, proxy1, proxy2".
+//     Using it whole made the key vary with the proxy chain, and a client can
+//     set the header directly, so only the first entry is meaningful.
+//
+// Note X-Forwarded-For is client controlled unless a trusted proxy overwrites
+// it. Honouring it means an attacker can pick their own bucket. Prefer
+// RemoteAddr, and only trust the header when running behind a proxy you
+// control.
 func PerIPKeyFunc(r *http.Request) string {
-	// Check X-Forwarded-For header first
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = r.Header.Get("X-Real-Ip")
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			xff = xff[:i]
+		}
+		if ip := strings.TrimSpace(xff); ip != "" {
+			return ip
+		}
 	}
-	if ip == "" {
-		ip = r.RemoteAddr
+	if ip := strings.TrimSpace(r.Header.Get("X-Real-Ip")); ip != "" {
+		return ip
 	}
-	return ip
+	// Strip the port: SplitHostPort fails on a bare host, in which case
+	// RemoteAddr is already what we want.
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // PerUserKeyFunc extracts user ID from context
