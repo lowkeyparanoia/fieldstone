@@ -92,3 +92,8 @@ Thumbs.db
 
 web/admin/node_modules/
 web/admin/dist/
+
+# compiled binaries and build artifacts
+/server
+/fieldstone
+*.tsbuildinfo
