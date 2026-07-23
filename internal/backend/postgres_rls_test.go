@@ -74,7 +74,20 @@ func appDSN(t *testing.T) string {
 		// role ends up owning the tables, and owners are exempt from their own
 		// policies unless forced.
 		`ALTER FUNCTION current_tenant_id() OWNER TO fieldstone_test_app`,
-		`ALTER TABLE _collections OWNER TO fieldstone_test_app`,
+		// Every table the schema init touches, not just _collections: init runs
+		// ALTER TABLE ... ENABLE/FORCE ROW LEVEL SECURITY on _users too, which
+		// requires ownership. Guarded with DO blocks so this works whether or
+		// not the tables already exist.
+		`DO $$ BEGIN
+		   IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename='_collections') THEN
+		     ALTER TABLE _collections OWNER TO fieldstone_test_app; END IF;
+		   IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename='_users') THEN
+		     ALTER TABLE _users OWNER TO fieldstone_test_app; END IF;
+		   IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename='_tenants') THEN
+		     ALTER TABLE _tenants OWNER TO fieldstone_test_app; END IF;
+		   IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename='_migrations') THEN
+		     ALTER TABLE _migrations OWNER TO fieldstone_test_app; END IF;
+		 END $$`,
 	} {
 		if _, err := pool.Exec(ctx, stmt); err != nil {
 			t.Fatalf("bootstrap: %v\n%s", err, stmt)
