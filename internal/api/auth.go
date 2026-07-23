@@ -25,8 +25,8 @@ type LoginRequest struct {
 
 // AuthResponse represents authentication response
 type AuthResponse struct {
-	Token   string      `json:"token"`
-	Record  models.User `json:"record"`
+	Token  string      `json:"token"`
+	Record models.User `json:"record"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +78,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	s.activity.record(Activity{
+		Type:    "user_created",
+		Message: "New user registered: " + user.Email,
+		UserID:  user.ID,
+	})
 
 	// Generate tokens
 	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)

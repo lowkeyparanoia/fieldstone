@@ -44,10 +44,16 @@ apiClient.interceptors.response.use(
 export interface Collection {
   id: string
   name: string
-  schema: SchemaField[]
+  // The API returns `fields`, not `schema`. The old name meant
+  // collection.schema?.length was always undefined and every collection
+  // rendered "0 fields".
+  fields: SchemaField[]
+  system?: boolean
   createdAt: string
   updatedAt: string
-  recordCount: number
+  // Not returned by /api/collections today; optional so the UI can show a
+  // placeholder rather than a confident zero.
+  recordCount?: number
 }
 
 export interface SchemaField {

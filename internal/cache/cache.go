@@ -10,6 +10,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
+	"strings"
+	"sync"
 )
 
 // Cache defines the caching interface
@@ -218,8 +220,14 @@ func (c *RedisCache) Stats(ctx context.Context) (Stats, error) {
 	return Stats{}, nil
 }
 
-// MemoryCache implements in-memory cache for testing/development
+// MemoryCache implements in-memory cache for testing/development.
+//
+// The map was previously shared across every request goroutine with no
+// synchronisation whatsoever. That is not a data race you can survive: Go
+// detects concurrent map writes in the runtime and calls fatal(), which is not
+// recoverable and takes the whole process down. A mutex is not optional here.
 type MemoryCache struct {
+	mu         sync.RWMutex
 	data       map[string]cacheItem
 	defaultTTL time.Duration
 	prefix     string
@@ -227,8 +235,8 @@ type MemoryCache struct {
 }
 
 type cacheItem struct {
-	value      string
-	expiresAt  time.Time
+	value     string
+	expiresAt time.Time
 }
 
 // NewMemoryCache creates an in-memory cache
@@ -248,19 +256,21 @@ func (c *MemoryCache) key(k string) string {
 }
 
 func (c *MemoryCache) Get(ctx context.Context, key string) (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	k := c.key(key)
 	item, ok := c.data[k]
 	if !ok {
 		c.stats.Misses++
 		return "", fmt.Errorf("key not found: %s", key)
 	}
-	
+
 	if time.Now().After(item.expiresAt) {
 		delete(c.data, k)
 		c.stats.Misses++
 		return "", fmt.Errorf("key expired: %s", key)
 	}
-	
+
 	c.stats.Hits++
 	return item.value, nil
 }
@@ -274,6 +284,8 @@ func (c *MemoryCache) GetJSON(ctx context.Context, key string, dest interface{})
 }
 
 func (c *MemoryCache) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if ttl == 0 {
 		ttl = c.defaultTTL
 	}
@@ -293,16 +305,32 @@ func (c *MemoryCache) SetJSON(ctx context.Context, key string, value interface{}
 }
 
 func (c *MemoryCache) Delete(ctx context.Context, key string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	delete(c.data, c.key(key))
 	return nil
 }
 
+// DeletePattern removes every key beginning with pattern.
+//
+// The previous implementation guarded on
+//
+//	len(k) >= len(prefix)+len(pattern)
+//
+// but then sliced to len(prefix)+1+len(pattern), one byte further, so a key
+// whose length exactly matched the guard panicked:
+//
+//	slice bounds out of range [:62] with length 61
+//
+// That fired on every record creation, because creating a record invalidates
+// the collection cache. strings.HasPrefix removes the arithmetic entirely.
 func (c *MemoryCache) DeletePattern(ctx context.Context, pattern string) error {
-	// Simple implementation - in production use regex matching
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	full := c.key(pattern)
 	for k := range c.data {
-		if len(k) >= len(c.prefix)+len(pattern) && 
-		   k[len(c.prefix)+1:len(c.prefix)+1+len(pattern)] == pattern {
-			delete(c.data, k)
+		if strings.HasPrefix(k, full) {
+			delete(c.data, k) // deleting during range is safe in Go
 		}
 	}
 	return nil
@@ -315,7 +343,7 @@ func (c *MemoryCache) Increment(ctx context.Context, key string, delta int64) (i
 		c.data[k] = cacheItem{value: fmt.Sprintf("%d", delta), expiresAt: time.Now().Add(c.defaultTTL)}
 		return delta, nil
 	}
-	
+
 	var current int64
 	fmt.Sscanf(val, "%d", &current)
 	current += delta
@@ -344,6 +372,8 @@ func (c *MemoryCache) TTL(ctx context.Context, key string) (time.Duration, error
 }
 
 func (c *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	_, err := c.Get(ctx, key)
 	return err == nil, nil
 }

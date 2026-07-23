@@ -117,7 +117,6 @@ export function DashboardPage() {
           value={statsLoading ? '' : formatNumber(stats?.totalRecords || 0)}
           description="Across all collections"
           icon={Database}
-          trend="+12% from last month"
           isLoading={statsLoading}
         />
         <StatCard
@@ -125,7 +124,6 @@ export function DashboardPage() {
           value={statsLoading ? '' : formatNumber(stats?.totalUsers || 0)}
           description="Registered users"
           icon={Users}
-          trend="+5 this week"
           isLoading={statsLoading}
         />
         <StatCard

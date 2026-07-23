@@ -213,3 +213,16 @@ func (b *PostgresBackend) CheckRLSEffective(ctx context.Context) error {
 	}
 	return nil
 }
+
+// StorageBytes reports the total on-disk size of the database, satisfying the
+// api.StorageReporter capability. Backends that cannot answer simply do not
+// implement it, and the dashboard reports zero rather than inventing a figure.
+func (b *PostgresBackend) StorageBytes() (int64, error) {
+	var n int64
+	err := b.pool.QueryRow(context.Background(),
+		`SELECT pg_database_size(current_database())`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("read database size: %w", err)
+	}
+	return n, nil
+}

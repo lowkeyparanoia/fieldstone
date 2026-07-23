@@ -31,17 +31,24 @@ type Server struct {
 	jobs    *jobs.Queue
 	cache   cache.Cache
 	logger  zerolog.Logger
+
+	// Real dashboard telemetry, replacing the hardcoded figures the
+	// dashboard used to report.
+	requests *requestCounter
+	activity *activityLog
 }
 
 // NewServer creates a new API server
 func NewServer(be backend.Backend, authService *auth.Service, jobQueue *jobs.Queue, cache cache.Cache) *Server {
 	s := &Server{
-		router:  chi.NewRouter(),
-		backend: be,
-		auth:    authService,
-		jobs:    jobQueue,
-		cache:   cache,
-		logger:  log.Logger,
+		requests: &requestCounter{},
+		activity: newActivityLog(200),
+		router:   chi.NewRouter(),
+		backend:  be,
+		auth:     authService,
+		jobs:     jobQueue,
+		cache:    cache,
+		logger:   log.Logger,
 	}
 
 	s.setupMiddleware()
@@ -52,6 +59,7 @@ func NewServer(be backend.Backend, authService *auth.Service, jobQueue *jobs.Que
 
 func (s *Server) setupMiddleware() {
 	// Request ID
+	s.router.Use(s.requests.middleware) // real requests-per-minute for the dashboard
 	s.router.Use(middleware.RequestID)
 
 	// Real IP
@@ -79,10 +87,10 @@ func (s *Server) setupMiddleware() {
 	// Cache middleware for API routes
 	if s.cache != nil {
 		cacheMiddleware := cache.Middleware(cache.MiddlewareConfig{
-			Cache:         s.cache,
-			DefaultTTL:    5 * time.Minute,
-			KeyPrefix:     "api",
-			ExcludePaths:  []string{"/health", "/api/auth", "/ws"},
+			Cache:          s.cache,
+			DefaultTTL:     5 * time.Minute,
+			KeyPrefix:      "api",
+			ExcludePaths:   []string{"/health", "/api/auth", "/ws"},
 			ExcludeMethods: []string{"POST", "PUT", "DELETE", "PATCH"},
 		})
 		s.router.Use(func(next http.Handler) http.Handler {
@@ -111,7 +119,7 @@ func (s *Server) setupMiddleware() {
 func (s *Server) setupRoutes() {
 	// Health check (detailed version will override this)
 	s.router.Get("/health", s.handleHealth)
-	
+
 	// Setup dashboard routes
 	s.extendSetupRoutes()
 
@@ -390,7 +398,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	
+
 	// Mock user
 	user := map[string]interface{}{
 		"id":        id,

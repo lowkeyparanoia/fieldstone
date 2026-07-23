@@ -2,10 +2,11 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/fieldstone/fieldstone/pkg/models"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 // DashboardStats represents dashboard statistics
@@ -31,9 +32,9 @@ type Activity struct {
 
 // HealthStatus represents system health
 type HealthStatus struct {
-	Status    string              `json:"status"`
-	Timestamp string              `json:"timestamp"`
-	Services  map[string]string   `json:"services"`
+	Status    string            `json:"status"`
+	Timestamp string            `json:"timestamp"`
+	Services  map[string]string `json:"services"`
 }
 
 // setupDashboardRoutes adds dashboard-specific routes
@@ -45,84 +46,77 @@ func (s *Server) setupDashboardRoutes(r chi.Router) {
 	})
 }
 
-// handleDashboardStats returns dashboard statistics
+// handleDashboardStats returns dashboard statistics computed from the database.
+//
+// Previously this returned hardcoded values: TotalUsers 45, RequestsPerMinute
+// 2340, StorageUsed 150MB, ActiveUsers 12, and TotalRecords was declared but
+// never calculated so it was always zero.
 func (s *Server) handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := s.getTenantID(r)
 
-	// Get collections
 	collections, err := s.backend.ListCollections(ctx, tenantID)
 	if err != nil {
 		s.sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Calculate total records
+	// Real record count: ask each collection for its total. PerPage 1 keeps the
+	// payload small; only the count is used.
 	var totalRecords int64
+	for _, c := range collections {
+		res, err := s.backend.QueryRecords(ctx, tenantID, c.ID, models.QueryOptions{Page: 1, PerPage: 1})
+		if err != nil {
+			// One unreadable collection should not blank the whole dashboard.
+			continue
+		}
+		totalRecords += int64(res.TotalItems)
+	}
 
-	// Mock stats for now (in production, these would come from metrics)
+	// Real user count.
+	var totalUsers int64
+	if users, err := s.backend.ListUsers(ctx, tenantID, models.QueryOptions{Page: 1, PerPage: 1}); err == nil {
+		totalUsers = int64(users.TotalItems)
+	}
+
+	// Real storage, where the backend can report it. Zero means "not available"
+	// rather than a fabricated figure.
+	var storageUsed int64
+	if sr, ok := s.backend.(StorageReporter); ok {
+		if n, err := sr.StorageBytes(); err == nil {
+			storageUsed = n
+		}
+	}
+
 	stats := DashboardStats{
 		TotalRecords:      totalRecords,
-		TotalUsers:        45,
+		TotalUsers:        totalUsers,
 		TotalCollections:  int64(len(collections)),
-		RequestsPerMinute: 2340,
-		StorageUsed:       157286400, // 150MB
-		StorageLimit:      10737418240, // 10GB
-		ActiveUsers:       12,
+		RequestsPerMinute: s.requests.perMinute(time.Now()),
+		StorageUsed:       storageUsed,
+		StorageLimit:      0, // no quota is enforced, so do not invent one
+		ActiveUsers:       totalUsers,
 	}
 
 	s.sendJSON(w, http.StatusOK, stats)
 }
 
-// handleDashboardActivities returns recent activities
+// handleDashboardActivities returns the real, in-memory activity log.
+//
+// This used to return six fabricated entries referencing john@example.com and
+// "products"/"orders" collections that do not exist.
 func (s *Server) handleDashboardActivities(w http.ResponseWriter, r *http.Request) {
-	// Mock activities (in production, these would come from an activity log)
-	activities := []Activity{
-		{
-			ID:        uuid.New().String(),
-			Type:      "user_created",
-			Message:   "New user registered: john@example.com",
-			UserID:    "system",
-			CreatedAt: time.Now().Add(-2 * time.Minute),
-		},
-		{
-			ID:        uuid.New().String(),
-			Type:      "collection_modified",
-			Message:   "Collection schema updated: products",
-			UserID:    "admin",
-			CreatedAt: time.Now().Add(-5 * time.Minute),
-		},
-		{
-			ID:        uuid.New().String(),
-			Type:      "record_created",
-			Message:   "New record created in orders collection",
-			UserID:    "john@example.com",
-			CreatedAt: time.Now().Add(-10 * time.Minute),
-		},
-		{
-			ID:        uuid.New().String(),
-			Type:      "backup_completed",
-			Message:   "Automatic backup completed successfully",
-			CreatedAt: time.Now().Add(-1 * time.Hour),
-		},
-		{
-			ID:        uuid.New().String(),
-			Type:      "webhook_triggered",
-			Message:   "Webhook delivered: User Created Notification",
-			CreatedAt: time.Now().Add(-2 * time.Hour),
-		},
-		{
-			ID:        uuid.New().String(),
-			Type:      "record_updated",
-			Message:   "Record updated in users collection",
-			UserID:    "admin",
-			CreatedAt: time.Now().Add(-3 * time.Hour),
-		},
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
 	}
-
-	s.sendJSON(w, http.StatusOK, map[string]interface{}{
-		"items": activities,
-	})
+	items := s.activity.recent(limit)
+	if items == nil {
+		items = []Activity{}
+	}
+	s.sendJSON(w, http.StatusOK, map[string]interface{}{"items": items})
 }
 
 // extendSetupRoutes registers dashboard routes and overrides the health check.
@@ -141,7 +135,7 @@ func (s *Server) registerDashboardRoutes(r chi.Router) {
 // handleHealthDetailed returns detailed health status
 func (s *Server) handleHealthDetailed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Check database
 	dbStatus := "healthy"
 	if err := s.backend.Ping(ctx); err != nil {

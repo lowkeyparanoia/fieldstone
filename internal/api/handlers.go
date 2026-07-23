@@ -19,7 +19,7 @@ import (
 
 // CollectionRequest represents a collection creation/update request
 type CollectionRequest struct {
-	Name   string        `json:"name"`
+	Name   string         `json:"name"`
 	Fields []models.Field `json:"fields"`
 }
 
@@ -74,6 +74,11 @@ func (s *Server) handleCreateCollection(w http.ResponseWriter, r *http.Request) 
 		s.sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	s.activity.record(Activity{
+		Type:    "collection_created",
+		Message: "Collection created: " + collection.Name,
+	})
 
 	// Invalidate collections list cache
 	if s.cache != nil {
@@ -284,6 +289,11 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		s.sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	s.activity.record(Activity{
+		Type:    "record_created",
+		Message: "Record created in collection " + collectionID,
+	})
 
 	// Invalidate records list cache
 	if s.cache != nil {
