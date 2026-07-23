@@ -122,12 +122,24 @@ func (b *PostgresBackend) initializeSchema() error {
 		ALTER TABLE _collections ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE _users ENABLE ROW LEVEL SECURITY;
 
-		-- Create RLS policies for row-level isolation
+		-- Create RLS policies for row-level isolation.
+		-- CREATE POLICY has no IF NOT EXISTS, so a bare CREATE makes the whole
+		-- schema init fail on the second boot against the same database. Drop
+		-- first to keep this idempotent.
+		DROP POLICY IF EXISTS tenant_isolation_collections ON _collections;
 		CREATE POLICY tenant_isolation_collections ON _collections
-			USING (tenant_id = current_tenant_id());
+			USING      (tenant_id = current_tenant_id())
+			WITH CHECK (tenant_id = current_tenant_id());
 
+		DROP POLICY IF EXISTS tenant_isolation_users ON _users;
 		CREATE POLICY tenant_isolation_users ON _users
-			USING (tenant_id = current_tenant_id());
+			USING      (tenant_id = current_tenant_id())
+			WITH CHECK (tenant_id = current_tenant_id());
+
+		-- Owners are exempt from their own policies unless forced. This server
+		-- runs its own DDL, so the application role owns these tables.
+		ALTER TABLE _collections FORCE ROW LEVEL SECURITY;
+		ALTER TABLE _users       FORCE ROW LEVEL SECURITY;
 	`
 
 	_, err := b.pool.Exec(ctx, schema)

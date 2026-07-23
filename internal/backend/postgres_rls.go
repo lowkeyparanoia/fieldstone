@@ -161,3 +161,55 @@ func (b *PostgresBackend) ApplyRLSHardening(ctx context.Context) error {
 	}
 	return nil
 }
+
+// CheckRLSEffective reports whether the connecting role is actually subject to
+// row level security.
+//
+// This matters more than any of the SQL above. Postgres exempts three kinds of
+// role from RLS, and in each case every policy silently does nothing:
+//
+//   - superusers, unconditionally. FORCE ROW LEVEL SECURITY does not help.
+//   - roles with the BYPASSRLS attribute.
+//   - the table owner, unless FORCE ROW LEVEL SECURITY is set.
+//
+// Connecting as "postgres" therefore disables tenant isolation completely while
+// looking perfectly healthy, which is the failure mode most likely to reach
+// production unnoticed. Call this at boot and refuse to start if it fails.
+func (b *PostgresBackend) CheckRLSEffective(ctx context.Context) error {
+	var isSuper, bypassRLS bool
+	err := b.pool.QueryRow(ctx,
+		`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`,
+	).Scan(&isSuper, &bypassRLS)
+	if err != nil {
+		return fmt.Errorf("inspect current role: %w", err)
+	}
+
+	switch {
+	case isSuper:
+		return fmt.Errorf("row level security is not enforced: connected as a superuser. " +
+			"Superusers bypass RLS unconditionally and FORCE ROW LEVEL SECURITY does not " +
+			"change that. Connect as a dedicated non-superuser role that does not own the tables")
+	case bypassRLS:
+		return fmt.Errorf("row level security is not enforced: the current role has BYPASSRLS. " +
+			"Revoke it with ALTER ROLE ... NOBYPASSRLS")
+	}
+
+	// Owning the tables is acceptable *if* FORCE ROW LEVEL SECURITY is set,
+	// which is the situation for this server because it runs its own DDL on
+	// boot. Check the actual flag rather than assuming.
+	var ownsTables, forced bool
+	if err := b.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM pg_tables
+		               WHERE tablename = '_collections' AND tableowner = current_user),
+		       COALESCE((SELECT relforcerowsecurity FROM pg_class
+		                 WHERE relname = '_collections'), false)
+	`).Scan(&ownsTables, &forced); err != nil {
+		return fmt.Errorf("inspect table ownership: %w", err)
+	}
+	if ownsTables && !forced {
+		return fmt.Errorf("row level security is not enforced: the current role owns " +
+			"_collections and FORCE ROW LEVEL SECURITY is not set, so the policies are " +
+			"bypassed. Call ApplyRLSHardening, or use a role that does not own the tables")
+	}
+	return nil
+}
