@@ -25,8 +25,8 @@ type LoginRequest struct {
 
 // AuthResponse represents authentication response
 type AuthResponse struct {
-	Token   string      `json:"token"`
-	Record  models.User `json:"record"`
+	Token  string      `json:"token"`
+	Record models.User `json:"record"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +78,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	s.activity.record(Activity{
+		Type:    "user_created",
+		Message: "New user registered: " + user.Email,
+		UserID:  user.ID,
+	})
 
 	// Generate tokens
 	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
@@ -181,8 +187,35 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Issue fresh token using same tokenKey (rotation only on logout)
-	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, user.TokenKey)
+	// Rotate the token key on every refresh, so the presented token is
+	// invalidated the moment a new one is issued.
+	//
+	// Previously the same key was reused and rotation happened only on logout,
+	// which meant a stolen token stayed valid for its full lifetime even after
+	// the legitimate client had refreshed. Rotating on refresh is what OAuth
+	// 2.0 security BCP recommends, and it turns token theft into something
+	// detectable: if an old key is ever presented again, either the attacker or
+	// the real client is using a token that was already superseded.
+	//
+	// Known trade-off: refresh is now single use, so two clients sharing an
+	// account (two browser tabs, say) can race, and the loser is forced to log
+	// in again. The usual mitigation is a short grace window that still accepts
+	// the immediately previous key. That is deliberately not implemented here,
+	// because it would weaken exactly the property the test asserts: that the
+	// old token stops working straight away. Add it only alongside reuse
+	// detection.
+	newKey, err := s.auth.GenerateTokenKey()
+	if err != nil {
+		s.sendError(w, http.StatusInternalServerError, "failed to rotate token key")
+		return
+	}
+	if err := s.backend.UpdateUserTokenKey(ctx, tenantID, user.ID, newKey); err != nil {
+		s.sendError(w, http.StatusInternalServerError, "failed to rotate token key")
+		return
+	}
+	user.TokenKey = newKey
+
+	tokens, err := s.auth.GenerateTokenPair(user.ID, tenantID, user.Email, newKey)
 	if err != nil {
 		s.sendError(w, http.StatusInternalServerError, "failed to generate tokens")
 		return

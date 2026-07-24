@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"net/http"
@@ -35,13 +36,9 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 
-	// Generate JWT secret if not provided
-	if *jwtSecret == "" {
-		*jwtSecret = generateSecret()
-		log.Warn().Msg("JWT secret auto-generated. Set FIELDSTONE_JWT_SECRET for persistence.")
-	}
-
-	// Override with env vars
+	// Environment overrides must be applied BEFORE deciding whether a secret
+	// needs generating, otherwise FIELDSTONE_JWT_SECRET is ignored on this path
+	// and a fresh secret is minted on every boot, invalidating every token.
 	if envPort := os.Getenv("FIELDSTONE_PORT"); envPort != "" {
 		*port = envPort
 	}
@@ -53,6 +50,12 @@ func main() {
 	}
 	if envJWT := os.Getenv("FIELDSTONE_JWT_SECRET"); envJWT != "" {
 		*jwtSecret = envJWT
+	}
+
+	// Generate JWT secret if still not provided
+	if *jwtSecret == "" {
+		*jwtSecret = generateSecret()
+		log.Warn().Msg("JWT secret auto-generated. Set FIELDSTONE_JWT_SECRET for persistence.")
 	}
 
 	log.Info().
@@ -202,12 +205,22 @@ func initJobQueue(be backend.Backend) *jobs.Queue {
 }
 
 // generateSecret creates a random secret for JWT signing
+// generateSecret returns 32 bytes of cryptographically secure randomness.
+//
+// The previous implementation called os.ReadFile("/dev/urandom"). ReadFile
+// reads a file to EOF, and /dev/urandom is an endless stream, so it never
+// returned: the process spun forever allocating unbounded memory. Because the
+// environment overrides were applied after this call, *jwtSecret was always
+// still empty here, so the server hung on every start unless -jwt-secret was
+// passed as a command line flag.
+//
+// crypto/rand is the correct source. It is the OS CSPRNG, it never blocks on
+// modern kernels, and it reports failure instead of silently returning zeros,
+// which the old code did whenever the ReadFile probe failed.
 func generateSecret() string {
 	b := make([]byte, 32)
-	if _, err := os.ReadFile("/dev/urandom"); err == nil {
-		f, _ := os.Open("/dev/urandom")
-		defer f.Close()
-		f.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatal().Err(err).Msg("Failed to read from the system CSPRNG")
 	}
 	return fmt.Sprintf("%x", b)
 }

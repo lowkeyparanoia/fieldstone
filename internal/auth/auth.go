@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -125,13 +126,21 @@ func (s *Service) VerifyPassword(password, hash string) bool {
 	return err == nil
 }
 
-// GenerateTokenKey generates a new token key for JWT rotation
+// GenerateTokenKey generates a new token key for JWT rotation.
+//
+// Must be a UUID: the schema declares
+//
+//	token_key UUID DEFAULT gen_random_uuid()
+//
+// This previously returned base64, which SQLite accepted because of its dynamic
+// typing but Postgres rejected with
+//
+//	invalid input syntax for type uuid: "nICicJUYHcrQcsjX9Aimig=="
+//
+// so no user could ever be registered against Postgres. A UUIDv4 carries the
+// same 122 bits of entropy as the 16 random bytes it replaces.
 func (s *Service) GenerateTokenKey() (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(bytes), nil
+	return uuid.NewString(), nil
 }
 
 // GenerateOTP generates a 6-digit OTP code

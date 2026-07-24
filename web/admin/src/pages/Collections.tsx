@@ -136,7 +136,7 @@ export function CollectionsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          {collection.schema?.length || 0} fields
+                          {collection.fields?.length ?? 0} fields
                         </Badge>
                       </TableCell>
                       <TableCell>

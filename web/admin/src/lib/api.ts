@@ -1,6 +1,10 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios'
 
-const API_BASE_URL = 'http://localhost:8090/api'
+// Relative by default, so the UI talks to whatever origin served it. A
+// hardcoded host and port breaks on any other port, breaks in production, and
+// makes same-origin requests cross-origin, which drags CORS in for no reason.
+// VITE_API_BASE_URL is there for running `vite dev` against a remote server.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -40,10 +44,16 @@ apiClient.interceptors.response.use(
 export interface Collection {
   id: string
   name: string
-  schema: SchemaField[]
+  // The API returns `fields`, not `schema`. The old name meant
+  // collection.schema?.length was always undefined and every collection
+  // rendered "0 fields".
+  fields: SchemaField[]
+  system?: boolean
   createdAt: string
   updatedAt: string
-  recordCount: number
+  // Not returned by /api/collections today; optional so the UI can show a
+  // placeholder rather than a confident zero.
+  recordCount?: number
 }
 
 export interface SchemaField {

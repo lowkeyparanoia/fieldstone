@@ -11,7 +11,6 @@ import { ActivityPage } from '@/pages/Activity'
 import { PluginsPage } from '@/pages/Plugins'
 import { WebhooksPage } from '@/pages/Webhooks'
 import { SettingsPage } from '@/pages/Settings'
-// @ts-expect-error CSS import for Vite
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -109,7 +108,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="fieldstone-theme">
-        <Router>
+        {/* Served from /admin/ by the Go binary, so routes are relative to it.
+            Without a basename no route matches and the app renders blank. */}
+        <Router basename="/admin">
           <AuthProvider>
             <AppRoutes />
           </AuthProvider>
